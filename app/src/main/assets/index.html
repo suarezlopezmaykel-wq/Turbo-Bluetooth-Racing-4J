@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Turbo Racing Pro - Circuitos</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; font-family: sans-serif; }
+        body { position: relative; }
+
+        .overlay-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); z-index: 30; }
+        .card { background: rgba(255,255,255,0.08); padding: 24px 20px; border-radius: 18px; width: min(90vw, 420px); text-align: center; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 12px 30px rgba(0,0,0,0.35); color: white; }
+        .card h2 { margin-bottom: 12px; color: #fff; font-size: 1.7rem; }
+        .card label { display: block; margin-bottom: 8px; color: #e7f7ff; text-align: left; font-size: 0.95rem; }
+        input, button, select { width: 100%; padding: 12px 14px; margin: 8px 0; border-radius: 10px; border: none; font-size: 15px; }
+        input, select { background: rgba(255,255,255,0.92); color: #111; outline: none; }
+        button { background: #ff4b2b; color: white; font-weight: bold; cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease; }
+        button:active { transform: scale(0.98); }
+        .btn-bt { background: #0088ff; }
+        .btn-track { background: #2ec4b6; margin-top: 10px; }
+        .btn-exit { background: #6c757d; margin-top: 5px; }
+        .btn-sec { background: #ffb703; color: #000; }
+
+        #hud { position: absolute; top: 12px; left: 16px; color: white; font-size: 16px; font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 10; display: none; }
+        #speedometer { position: absolute; top: 10px; right: 18px; color: #00ffff; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; z-index: 10; display: none; }
+        #countdownOverlay { position: absolute; top: 30%; width: 100%; text-align: center; color: #ffeb3b; font-size: 80px; font-weight: bold; text-shadow: 4px 4px 10px #000; z-index: 20; display: none; }
+
+        #resultsModal { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 24; }
+        .results-card { background: #222; padding: 25px 20px; border-radius: 15px; border: 2px solid #ff4b2b; width: min(85vw, 390px); text-align: center; color: white; }
+        .results-list { list-style: none; margin: 15px 0; padding: 0; text-align: left; }
+        .results-list li { padding: 8px 6px; border-bottom: 1px solid #444; font-size: 18px; }
+
+        .controls { position: absolute; bottom: 18px; width: 100%; display: none; justify-content: space-between; padding: 0 20px; z-index: 10; }
+        .btn-group { display: flex; gap: 12px; }
+        .btn-vertical { display: flex; flex-direction: column; gap: 8px; }
+        .btn { width: 62px; height: 62px; background: rgba(0, 0, 0, 0.42); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 50%; color: white; font-size: 24px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+        .btn:active { background: rgba(255, 75, 43, 0.8); }
+        .btn-rev { background: rgba(255, 165, 0, 0.4); font-size: 16px; font-weight: bold; }
+
+        #btStatusText { margin: 10px 0; font-weight: bold; color: #ffeb3b; }
+
+        canvas { display: block; width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+
+    <!-- Paso 1: Selección de Modo -->
+    <div id="modeMenu" class="overlay-screen">
+        <div class="card">
+            <h2>TURBO RACING PRO</h2>
+            <label>Nombre del Piloto</label>
+            <input type="text" id="playerName" value="Piloto 1" maxlength="12">
+            <button id="btnSingleMode">VS COMPUTADORA</button>
+            <button id="btnBtMode" class="btn-bt">MULTIJUGADOR BLUETOOTH</button>
+        </div>
+    </div>
+
+    <!-- Paso 2: Conexión Bluetooth -->
+    <div id="bluetoothMenu" class="overlay-screen" style="display: none;">
+        <div class="card">
+            <h2>MULTIJUGADOR BLUETOOTH</h2>
+            <p style="font-size: 14px; margin-bottom: 10px;">Empareja los teléfonos en los Ajustes de Android si aún no lo están.</p>
+            <button id="btnOpenSettings" class="btn-bt">⚙️ AJUSTES BLUETOOTH</button>
+            <button id="btnRefreshDevices" class="btn-sec">🔄 BUSCAR DISPOSITIVOS</button>
+
+            <label for="deviceSelect" style="margin-top: 10px;">Dispositivo Emparejado:</label>
+            <select id="deviceSelect"></select>
+
+            <button id="btnHostGame" class="btn-track" style="background: #2a9d8f;">👑 CREAR SALA (HOST)</button>
+            <button id="btnJoinGame" class="btn-bt">🔗 UNIRSE A SALA</button>
+
+            <div id="btStatusText">Estado: Desconectado</div>
+            <button id="btnBackMode" class="btn-exit">VOLVER AL MENÚ</button>
+        </div>
+    </div>
+
+    <!-- Paso 3: Selección de Pista -->
+    <div id="trackMenu" class="overlay-screen" style="display: none;">
+        <div class="card">
+            <h2>SELECCIONAR PISTA</h2>
+            <button id="btnTrackForest" class="btn-track" style="background: #2a9d8f;">🌲 BOSQUE ENCANTADO</button>
+            <button id="btnTrackDesert" class="btn-track" style="background: #e76f51;">🏜️ DESIERTO ROJO</button>
+        </div>
+    </div>
+
+    <div id="hud">Piloto: <span id="hudName"></span> <span id="hudRole"></span></div>
+    <div id="speedometer"><span id="speedVal">0</span> km/h</div>
+    <div id="countdownOverlay">5</div>
+
+    <div id="resultsModal">
+        <div class="results-card">
+            <h2>POSICIONES FINALES</h2>
+            <ol id="positionsList" class="results-list"></ol>
+            <button id="btnRestartRace">VOLVER A JUGAR</button>
+            <button id="btnSelectTrack">CAMBIAR DE PISTA</button>
+            <button id="btnExitGame" class="btn-exit">SALIR DEL JUEGO</button>
+        </div>
+    </div>
+
+    <div class="controls" id="controls">
+        <div class="btn-group">
+            <div class="btn" id="btnLeft">◀</div>
+            <div class="btn" id="btnRight">▶</div>
+        </div>
+        <div class="btn-vertical">
+            <div class="btn" id="btnGas">▲</div>
+            <div class="btn" id="btnBrake">▼</div>
+            <div class="btn btn-rev" id="btnReverse">R</div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let speed = 0;
+        const maxSpeed = 190, maxReverseSpeed = -50;
+        let isGas = false, isBrake = false, isReverse = false, isLeft = false, isRight = false;
+        let audioCtx, engineOsc, engineGain;
+        let raceStarted = false, countdownValue = 5;
+        let finishedCars = [];
+        let isMultiplayerBT = false;
+        let isHost = false;
+        let selectedTrack = 'forest';
+        let isLoopRunning = false;
+
+        const LANE_WIDTH = 80;
+        const TRACK_WIDTH = LANE_WIDTH * 4;
+        const ROAD_X = 2000;
+        const START_Y = 5000;
+        const GOAL_Y = -28000;
+        const PARKING_Y = GOAL_Y - 1800;
+
+        function getCurveOffset(y) {
+            const straightZone = 3500;
+            const startPoint = START_Y - straightZone;
+            if (y >= startPoint) return 0;
+            const d = y - startPoint;
+            const transitionLength = 2000;
+            const factor = Math.min(1, Math.abs(d) / transitionLength);
+            const smoothFactor = factor * factor * (3 - 2 * factor);
+            const bend = Math.sin(d * 0.00028) * 420;
+            const secondary = Math.sin(d * 0.00012) * 130;
+            return (bend + secondary) * smoothFactor;
+        }
+        function getTrackCenterAtY(y) { return ROAD_X + getCurveOffset(y); }
+
+        const parkingSlots = [
+            { x: ROAD_X - 160, y: PARKING_Y - 90, occupied: false },
+            { x: ROAD_X + 160, y: PARKING_Y - 90, occupied: false },
+            { x: ROAD_X - 160, y: PARKING_Y + 90, occupied: false },
+            { x: ROAD_X + 160, y: PARKING_Y + 90, occupied: false }
+        ];
+
+        const obstacles = [
+            { y: 2000, lanes: [0, 1], rampLane: 0 },
+            { y: -2000, lanes: [2, 3], rampLane: 3 },
+            { y: -6000, lanes: [1, 2], rampLane: 1 },
+            { y: -10000, lanes: [0, 1], rampLane: 1 },
+            { y: -14000, lanes: [2, 3], rampLane: 2 },
+            { y: -18000, lanes: [1, 2], rampLane: 2 },
+            { y: -22000, lanes: [0, 1], rampLane: 0 },
+            { y: -25000, lanes: [2, 3], rampLane: 3 }
+        ];
+
+        const cars = [
+            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
+            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
+            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
+            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null }
+        ];
+
+        let player = cars[0];
+
+        const scenery = [];
+        for (let i = 0; i < 600; i++) {
+            const side = Math.random() > 0.5 ? 1 : -1;
+            const sy = START_Y + 1000 - Math.random() * (START_Y - GOAL_Y + 4000);
+            if (sy < PARKING_Y + 500 && sy > PARKING_Y - 500) continue;
+            const offset = getCurveOffset(sy);
+            const sx = ROAD_X + offset + (side * (TRACK_WIDTH / 2 + 180 + Math.random() * 800));
+            const randType = Math.random();
+            let type = 'tree';
+            if (randType < 0.4) type = 'tree';
+            else if (randType < 0.7) type = 'house';
+            else type = 'crowd';
+            scenery.push({ x: sx, y: sy, size: 22 + Math.random() * 25, type });
+        }
+
+        document.getElementById('btnSingleMode').onclick = () => selectMode(false);
+        document.getElementById('btnBtMode').onclick = () => selectMode(true);
+        document.getElementById('btnBackMode').onclick = () => {
+            document.getElementById('bluetoothMenu').style.display = 'none';
+            document.getElementById('modeMenu').style.display = 'flex';
+        };
+
+        function selectMode(isBt) {
+            isMultiplayerBT = isBt;
+            document.getElementById('modeMenu').style.display = 'none';
+            if (isBt) {
+                document.getElementById('bluetoothMenu').style.display = 'flex';
+                loadPairedDevices();
+            } else {
+                document.getElementById('trackMenu').style.display = 'flex';
+            }
+        }
+
+        document.getElementById('btnOpenSettings').onclick = () => {
+            if (window.AndroidBluetooth && window.AndroidBluetooth.connectBluetooth) {
+                window.AndroidBluetooth.connectBluetooth();
+            } else {
+                alert('La interfaz Bluetooth nativa no está disponible.');
+            }
+        };
+
+        document.getElementById('btnRefreshDevices').onclick = () => {
+            loadPairedDevices();
+        };
+
+        function loadPairedDevices() {
+            const select = document.getElementById('deviceSelect');
+            select.innerHTML = '';
+            if (window.AndroidBluetooth && window.AndroidBluetooth.getPairedDevices) {
+                try {
+                    const jsonStr = window.AndroidBluetooth.getPairedDevices();
+                    const list = JSON.parse(jsonStr);
+                    if (list.length === 0) {
+                        select.innerHTML = '<option value="">No hay dispositivos emparejados</option>';
+                    } else {
+                        list.forEach(dev => {
+                            const opt = document.createElement('option');
+                            opt.value = dev.address;
+                            opt.innerText = `${dev.name} (${dev.address})`;
+                            select.appendChild(opt);
+                        });
+                    }
+                } catch(e) {
+                    select.innerHTML = '<option value="">Error cargando lista</option>';
+                }
+            } else {
+                select.innerHTML = '<option value="">No disponible fuera de la App Android</option>';
+            }
+        }
+
+        document.getElementById('btnHostGame').onclick = () => {
+            if (window.AndroidBluetooth && window.AndroidBluetooth.startServer) {
+                isHost = true;
+                player = cars[0];
+                cars[1].isAI = false;
+                window.AndroidBluetooth.startServer();
+                document.getElementById('btStatusText').innerText = "Esperando que se una el Jugador 2...";
+            } else {
+                alert("Bluetooth no está disponible en este dispositivo.");
+            }
+        };
+
+        document.getElementById('btnJoinGame').onclick = () => {
+            const addr = document.getElementById('deviceSelect').value;
+            if (!addr) {
+                alert("Selecciona un dispositivo emparejado primero.");
+                return;
+            }
+            if (window.AndroidBluetooth && window.AndroidBluetooth.connectToDevice) {
+                isHost = false;
+                player = cars[1];
+                cars[1].isAI = false;
+                window.AndroidBluetooth.connectToDevice(addr);
+                document.getElementById('btStatusText').innerText = "Conectando con la sala del Host...";
+            } else {
+                alert("Bluetooth no está disponible.");
+            }
+        };
+
+        window.onBluetoothStatus = function(status) {
+            const textEl = document.getElementById('btStatusText');
+            if (status === 'CONNECTED') {
+                if (isHost) {
+                    textEl.innerText = "¡Jugador 2 conectado! Elige la pista...";
+                    setTimeout(() => {
+                        document.getElementById('bluetoothMenu').style.display = 'none';
+                        document.getElementById('trackMenu').style.display = 'flex';
+                    }, 600);
+                } else {
+                    textEl.innerText = "¡Conectado al Host! Esperando que inicie la carrera...";
+                }
+            } else if (status === 'WAITING') {
+                textEl.innerText = "Servidor iniciado. Esperando conexión...";
+            } else if (status === 'CONNECTING') {
+                textEl.innerText = "Conectando...";
+            } else if (status === 'FAILED') {
+                textEl.innerText = "Fallo al establecer la conexión Bluetooth. Revisa los permisos y vuelve a intentarlo.";
+            } else if (status === 'DISCONNECTED') {
+                textEl.innerText = "Conexión perdida con el otro jugador. Puedes volver a unirte o crear sala.";
+            }
+        };
+
+        window.onBluetoothData = function(jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                if (data.type === 'START_RACE') {
+                    selectedTrack = data.track;
+                    cars[0].name = data.hostName;
+                    document.getElementById('bluetoothMenu').style.display = 'none';
+                    startRaceLocal(selectedTrack);
+                } else if (data.type === 'POS_UPDATE') {
+                    if (isHost) {
+                        cars[1].x = data.x;
+                        cars[1].y = data.y;
+                        cars[1].angle = data.angle;
+                        cars[1].speed = data.speed;
+                    } else {
+                        cars[0].x = data.hostX;
+                        cars[0].y = data.hostY;
+                        cars[0].angle = data.hostAngle;
+                        cars[0].speed = data.hostSpeed;
+                        if (data.cars) {
+                            data.cars.forEach((cData, i) => {
+                                if (i !== 1) {
+                                    cars[i].x = cData.x;
+                                    cars[i].y = cData.y;
+                                    cars[i].angle = cData.angle;
+                                    cars[i].speed = cData.speed;
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch(e) {}
+        };
+
+        document.getElementById('btnTrackForest').onclick = () => selectTrackAndStart('forest');
+        document.getElementById('btnTrackDesert').onclick = () => selectTrackAndStart('desert');
+
+        function selectTrackAndStart(track) {
+            selectedTrack = track;
+            if (isMultiplayerBT && isHost && window.AndroidBluetooth) {
+                window.AndroidBluetooth.sendData(JSON.stringify({
+                    type: 'START_RACE',
+                    track: selectedTrack,
+                    hostName: document.getElementById('playerName').value || "Host"
+                }));
+            }
+            startRaceLocal(selectedTrack);
+        }
+
+        document.getElementById('btnRestartRace').onclick = () => resetGame(false);
+        document.getElementById('btnSelectTrack').onclick = () => resetGame(true);
+        document.getElementById('btnExitGame').onclick = () => {
+            if (window.AndroidBluetooth && window.AndroidBluetooth.closeApp) {
+                window.AndroidBluetooth.closeApp();
+            } else {
+                location.reload();
+            }
+        };
+
+        function resetGame(toTrackSelect) {
+            document.getElementById('resultsModal').style.display = 'none';
+            finishedCars = [];
+            raceStarted = false;
+            countdownValue = 5;
+            speed = 0;
+
+            parkingSlots.forEach(s => s.occupied = false);
+
+            cars.forEach((c, idx) => {
+                c.x = ROAD_X + (idx - 1.5) * LANE_WIDTH;
+                c.y = START_Y + 100;
+                c.angle = 0;
+                c.speed = 0;
+                c.finished = false;
+                c.jumping = false;
+                c.jumpZ = 0;
+                c.aiState = 'FORWARD';
+                c.targetSlot = null;
+            });
+
+            if (toTrackSelect) {
+                document.getElementById('hud').style.display = 'none';
+                document.getElementById('speedometer').style.display = 'none';
+                document.getElementById('controls').style.display = 'none';
+                document.getElementById('trackMenu').style.display = 'flex';
+            } else {
+                startCountdown();
+            }
+        }
+
+        function initAudio() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                engineOsc = audioCtx.createOscillator();
+                engineGain = audioCtx.createGain();
+                engineOsc.type = 'sawtooth';
+                engineOsc.frequency.setValueAtTime(40, audioCtx.currentTime);
+                engineGain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+                engineOsc.connect(engineGain);
+                engineGain.connect(audioCtx.destination);
+                engineOsc.start();
+            } catch(e) {}
+        }
+
+        function startRaceLocal(track) {
+            selectedTrack = track;
+            player.name = document.getElementById('playerName').value || (isHost ? "Piloto 1" : "Jugador 2");
+            document.getElementById('hudName').innerText = player.name;
+            document.getElementById('hudRole').innerText = isMultiplayerBT ? (isHost ? "[HOST BT]" : "[CLIENTE BT]") : "";
+
+            document.getElementById('bluetoothMenu').style.display = 'none';
+            document.getElementById('trackMenu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('speedometer').style.display = 'block';
+            document.getElementById('controls').style.display = 'flex';
+
+            initAudio();
+            setupControls();
+            startCountdown();
+            if (!isLoopRunning) {
+                isLoopRunning = true;
+                loop();
+            }
+        }
+
+        function startCountdown() {
+            const cdBox = document.getElementById('countdownOverlay');
+            cdBox.style.display = 'block';
+            cdBox.innerText = '5';
+
+            const timer = setInterval(() => {
+                countdownValue--;
+                if (countdownValue > 0) {
+                    cdBox.innerText = countdownValue;
+                } else if (countdownValue === 0) {
+                    cdBox.innerText = "GO!";
+                    raceStarted = true;
+                } else {
+                    cdBox.style.display = 'none';
+                    clearInterval(timer);
+                }
+            }, 1000);
+        }
+
+        function setupControls() {
+            const bind = (id, fn) => {
+                const el = document.getElementById(id);
+                el.ontouchstart = (e) => { e.preventDefault(); fn(true); };
+                el.ontouchend = (e) => { e.preventDefault(); fn(false); };
+                el.onmousedown = (e) => { e.preventDefault(); fn(true); };
+                el.onmouseup = (e) => { e.preventDefault(); fn(false); };
+            };
+            bind('btnLeft', v => isLeft = v);
+            bind('btnRight', v => isRight = v);
+            bind('btnGas', v => isGas = v);
+            bind('btnBrake', v => isBrake = v);
+            bind('btnReverse', v => isReverse = v);
+        }
+
+        function checkCarCarCollisions() {
+            for (let i = 0; i < cars.length; i++) {
+                for (let j = i + 1; j < cars.length; j++) {
+                    const c1 = cars[i];
+                    const c2 = cars[j];
+
+                    if (c1.jumping || c2.jumping) continue;
+
+                    const dx = c2.x - c1.x;
+                    const dy = c2.y - c1.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = 38;
+
+                    if (dist < minDist && dist > 0) {
+                        const overlap = minDist - dist;
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+
+                        c1.x -= nx * (overlap / 2);
+                        c1.y -= ny * (overlap / 2);
+                        c2.x += nx * (overlap / 2);
+                        c2.y += ny * (overlap / 2);
+
+                        if (c1 === player || c2 === player) {
+                            speed *= 0.85;
+                        }
+                    }
+                }
+            }
+        }
+
+        function checkCollisions(car) {
+            if (car.jumping) return;
+
+            const curve = getCurveOffset(car.y);
+            const leftBoundary = ROAD_X + curve - TRACK_WIDTH / 2 + 15;
+            const rightBoundary = ROAD_X + curve + TRACK_WIDTH / 2 - 15;
+
+            if (car.x < leftBoundary) {
+                car.x = leftBoundary;
+                if (car === player) speed *= 0.4;
+            } else if (car.x > rightBoundary) {
+                car.x = rightBoundary;
+                if (car === player) speed *= 0.4;
+            }
+
+            obstacles.forEach(obs => {
+                if (Math.abs(car.y - obs.y) < 35) {
+                    const minLane = obs.lanes[0];
+                    const maxLane = obs.lanes[1];
+                    const obsMinX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
+                    const obsMaxX = ROAD_X + curve - TRACK_WIDTH / 2 + (maxLane + 1) * LANE_WIDTH;
+                    const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH + LANE_WIDTH / 2;
+
+                    if (car.x >= obsMinX && car.x <= obsMaxX) {
+                        if (Math.abs(car.x - rampX) < LANE_WIDTH / 2) {
+                            const curSpeed = (car === player) ? Math.abs(speed) : 150;
+                            if (curSpeed >= maxSpeed - 15) {
+                                car.jumping = true;
+                                car.jumpZ = 1;
+                                setTimeout(() => {
+                                    car.jumping = false;
+                                    car.jumpZ = 0;
+                                }, 700);
+                                return;
+                            }
+                        }
+
+                        car.y += (car.y > obs.y ? 15 : -15);
+                        if (car === player) speed *= -0.4;
+
+                        if (car.isAI) {
+                            car.aiState = 'BACKUP';
+                            setTimeout(() => { car.aiState = 'CHANGE_LANE'; }, 800);
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAI(car) {
+            if (car.finished || !raceStarted) return;
+
+            if (car.aiState === 'FORWARD') {
+                car.y -= 11.5;
+                car.angle = 0;
+            } else if (car.aiState === 'BACKUP') {
+                car.y += 4;
+                car.angle = 0.1;
+            } else if (car.aiState === 'CHANGE_LANE') {
+                car.x += 3.5;
+                car.y -= 3;
+                setTimeout(() => { car.aiState = 'FORWARD'; }, 700);
+            }
+
+            const targetX = getTrackCenterAtY(car.y);
+            car.x += (targetX - car.x) * 0.02;
+        }
+
+        function drawCar(c) {
+            ctx.save();
+            ctx.translate(c.x, c.y);
+
+            if (c.jumping) {
+                ctx.scale(1.25, 1.25);
+            }
+
+            ctx.rotate(c.angle);
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-12, -20, 28, 48);
+
+            ctx.fillStyle = c.color;
+            ctx.fillRect(-14, -24, 28, 48);
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-10, -10, 20, 20);
+
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(-17, -18, 5, 12);
+            ctx.fillRect(12, -18, 5, 12);
+            ctx.fillRect(-17, 8, 5, 12);
+            ctx.fillRect(12, 8, 5, 12);
+
+            ctx.restore();
+        }
+
+        function drawTrack() {
+            const trackColor = selectedTrack === 'forest' ? '#2b2d42' : '#3d2612';
+            const curbColor = selectedTrack === 'forest' ? '#c1121f' : '#e76f51';
+
+            const step = 180;
+            for (let y = START_Y + 1000; y >= GOAL_Y - 3000; y -= step) {
+                const c1 = getCurveOffset(y);
+                const c2 = getCurveOffset(y - step);
+
+                ctx.beginPath();
+                ctx.fillStyle = trackColor;
+                ctx.moveTo(ROAD_X + c1 - TRACK_WIDTH / 2, y);
+                ctx.lineTo(ROAD_X + c1 + TRACK_WIDTH / 2, y);
+                ctx.lineTo(ROAD_X + c2 + TRACK_WIDTH / 2, y - step);
+                ctx.lineTo(ROAD_X + c2 - TRACK_WIDTH / 2, y - step);
+                ctx.closePath();
+                ctx.fill();
+
+                const left1 = ROAD_X + c1 - TRACK_WIDTH / 2;
+                const right1 = ROAD_X + c1 + TRACK_WIDTH / 2;
+                const left2 = ROAD_X + c2 - TRACK_WIDTH / 2;
+                const right2 = ROAD_X + c2 + TRACK_WIDTH / 2;
+
+                ctx.fillStyle = curbColor;
+                ctx.beginPath();
+                ctx.moveTo(left1, y);
+                ctx.lineTo(left2, y - step);
+                ctx.lineTo(left2 - 14, y - step);
+                ctx.lineTo(left1 - 14, y);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(right1, y);
+                ctx.lineTo(right2, y - step);
+                ctx.lineTo(right2 + 14, y - step);
+                ctx.lineTo(right1 + 14, y);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            obstacles.forEach(obs => {
+                const curve = getCurveOffset(obs.y);
+                const minLane = obs.lanes[0];
+                const obsX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
+                const obsWidth = LANE_WIDTH * 2;
+
+                ctx.fillStyle = '#ff9f1c';
+                ctx.fillRect(obsX, obs.y - 15, obsWidth, 30);
+
+                const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH;
+                ctx.fillStyle = '#3a86ff';
+                ctx.beginPath();
+                ctx.moveTo(rampX + 5, obs.y + 40);
+                ctx.lineTo(rampX + LANE_WIDTH - 5, obs.y + 40);
+                ctx.lineTo(rampX + LANE_WIDTH / 2, obs.y - 20);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            const startCurve = getCurveOffset(START_Y);
+            ctx.fillStyle = '#ffeb3b';
+            ctx.fillRect(ROAD_X + startCurve - TRACK_WIDTH / 2, START_Y, TRACK_WIDTH, 12);
+
+            const goalCurve = getCurveOffset(GOAL_Y);
+            ctx.fillStyle = '#00ffcc';
+            ctx.fillRect(ROAD_X + goalCurve - TRACK_WIDTH / 2, GOAL_Y, TRACK_WIDTH, 16);
+            ctx.font = 'bold 40px sans-serif';
+            ctx.fillText("=== FINISH / GOAL ===", ROAD_X + goalCurve, GOAL_Y - 40);
+
+            ctx.fillStyle = '#333';
+            ctx.fillRect(ROAD_X - 250, PARKING_Y - 180, 500, 360);
+            ctx.strokeStyle = '#ffb703';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(ROAD_X - 250, PARKING_Y - 180, 500, 360);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 26px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            parkingSlots.forEach((slot, i) => {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(slot.x - 40, slot.y - 50, 80, 100);
+                ctx.fillText(`P${i + 1}`, slot.x, slot.y + 10);
+            });
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+        }
+
+        function drawEnvironment() {
+            scenery.forEach(s => {
+                if (Math.abs(s.y - player.y) < canvas.height * 1.5) {
+                    ctx.save();
+                    ctx.translate(s.x, s.y);
+
+                    if (s.type === 'tree') {
+                        ctx.fillStyle = selectedTrack === 'forest' ? '#2d6a4f' : '#e9c46a';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, s.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (s.type === 'house') {
+                        ctx.fillStyle = '#d62828';
+                        ctx.fillRect(-s.size, -s.size, s.size * 2, s.size * 1.5);
+                        ctx.fillStyle = '#003049';
+                        ctx.fillRect(-s.size / 2, -s.size / 2, s.size, s.size / 2);
+                    } else if (s.type === 'crowd') {
+                        ctx.fillStyle = '#f1faee';
+                        ctx.beginPath();
+                        ctx.arc(-10, 0, 8, 0, Math.PI * 2);
+                        ctx.arc(10, 0, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#e63946';
+                        ctx.fillRect(-14, 8, 8, 12);
+                        ctx.fillRect(6, 8, 8, 12);
+                    }
+
+                    ctx.restore();
+                }
+            });
+        }
+
+        function assignParkingSlot(car) {
+            if (!car.targetSlot) {
+                const freeSlots = parkingSlots.filter(s => !s.occupied);
+                if (freeSlots.length > 0) {
+                    const chosen = freeSlots[Math.floor(Math.random() * freeSlots.length)];
+                    chosen.occupied = true;
+                    car.targetSlot = chosen;
+                }
+            }
+        }
+
+        function updateAutoParking(c) {
+            assignParkingSlot(c);
+            if (!c.targetSlot) return;
+
+            const dx = c.targetSlot.x - c.x;
+            const dy = c.targetSlot.y - c.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 8) {
+                c.angle = Math.atan2(dx, -dy);
+                c.x += Math.sin(c.angle) * 3.5;
+                c.y -= Math.cos(c.angle) * 3.5;
+            } else {
+                c.speed = 0;
+            }
+
+            if (c === player && engineGain && audioCtx) {
+                const progress = Math.min(1, Math.abs(c.y - GOAL_Y) / 1800);
+                const newGain = Math.max(0, 0.03 * (1 - progress));
+                engineGain.gain.setValueAtTime(newGain, audioCtx.currentTime);
+            }
+        }
+
+        let syncFrame = 0;
+
+        function loop() {
+            requestAnimationFrame(loop);
+
+            if (raceStarted && !player.finished) {
+                if (isGas && speed < maxSpeed) speed += 2.2;
+                else if (isReverse && speed > maxReverseSpeed) speed -= 1.5;
+                else if (isBrake) {
+                    if (speed > 0) speed -= 4.0;
+                    else if (speed < 0) speed += 4.0;
+                } else {
+                    if (speed > 0) speed -= 0.8;
+                    if (speed < 0) speed += 0.8;
+                }
+
+                const turnSensitivity = 0.038;
+                if (isLeft && Math.abs(speed) > 5) player.angle -= turnSensitivity * (speed > 0 ? 1 : -1);
+                if (isRight && Math.abs(speed) > 5) player.angle += turnSensitivity * (speed > 0 ? 1 : -1);
+
+                player.x += Math.sin(player.angle) * (speed / 15);
+                player.y -= Math.cos(player.angle) * (speed / 15);
+
+                checkCollisions(player);
+
+                if (player.y <= GOAL_Y) {
+                    player.finished = true;
+                    finishedCars.push(player);
+                }
+
+                if (isMultiplayerBT && window.AndroidBluetooth && window.AndroidBluetooth.sendData) {
+                    syncFrame++;
+                    if (syncFrame % 3 === 0) {
+                        if (isHost) {
+                            window.AndroidBluetooth.sendData(JSON.stringify({
+                                type: 'POS_UPDATE',
+                                hostX: player.x,
+                                hostY: player.y,
+                                hostAngle: player.angle,
+                                hostSpeed: speed,
+                                cars: cars.map(c => ({ x: c.x, y: c.y, angle: c.angle, speed: c.speed }))
+                            }));
+                        } else {
+                            window.AndroidBluetooth.sendData(JSON.stringify({
+                                type: 'POS_UPDATE',
+                                x: player.x,
+                                y: player.y,
+                                angle: player.angle,
+                                speed: speed
+                            }));
+                        }
+                    }
+                }
+            }
+
+            checkCarCarCollisions();
+
+            document.getElementById('speedVal').innerText = Math.round(Math.abs(speed));
+
+            if (engineOsc && audioCtx && !player.finished) {
+                const engineFreq = 40 + (Math.abs(speed) / maxSpeed) * 220;
+                engineOsc.frequency.setTargetAtTime(engineFreq, audioCtx.currentTime, 0.1);
+            }
+
+            ctx.save();
+            ctx.fillStyle = selectedTrack === 'forest' ? '#52b788' : '#f4a261';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const cameraY = player.y - canvas.height * 0.22;
+            ctx.translate(canvas.width / 2 - player.x, canvas.height / 2 - cameraY);
+
+            drawTrack();
+            drawEnvironment();
+
+            cars.forEach((c) => {
+                if (c !== player && raceStarted && !c.finished) {
+                    if (!isMultiplayerBT && c.isAI) {
+                        updateAI(c);
+                    } else if (isMultiplayerBT && isHost && c.isAI) {
+                        updateAI(c);
+                    }
+                    checkCollisions(c);
+
+                    if (c.y <= GOAL_Y) {
+                        c.finished = true;
+                        finishedCars.push(c);
+                    }
+                }
+
+                if (c.finished) {
+                    updateAutoParking(c);
+                }
+
+                drawCar(c);
+            });
+
+            ctx.restore();
+
+            if (finishedCars.length === cars.length && document.getElementById('resultsModal').style.display !== 'flex') {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            const list = document.getElementById('positionsList');
+            list.innerHTML = '';
+
+            finishedCars.forEach((c, idx) => {
+                const li = document.createElement('li');
+                let tieLabel = "";
+                if (idx > 0 && Math.abs(c.y - finishedCars[idx - 1].y) < 15) {
+                    tieLabel = " (EMPATE)";
+                }
+                li.innerText = `${idx + 1}. ${c.name}${tieLabel}`;
+                list.appendChild(li);
+            });
+
+            document.getElementById('resultsModal').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
