@@ -193,10 +193,10 @@
         }
 
         const cars = [
-            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 },
-            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 },
-            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 },
-            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 }
+            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 },
+            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 },
+            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 },
+            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 }
         ];
 
         let player = cars[0];
@@ -582,6 +582,8 @@
 
             if (selectedTrack === 'desert' && raceStarted) {
                 const now = Date.now();
+                if (car.hitCooldown === undefined) car.hitCooldown = 0;
+
                 blackCars.forEach(bc => {
                     const dx = car.x - bc.x;
                     const dy = car.y - bc.y;
@@ -593,11 +595,15 @@
                         car.x += nx * Math.max(overlap, 10);
                         car.y += ny * Math.max(overlap, 15);
 
-                        if (car === player) {
-                            speed *= -0.5;
-                        } else if (car.isAI) {
-                            car.aiState = 'BACKUP';
-                            setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                        if (now > car.hitCooldown) {
+                            car.hitCooldown = now + 800;
+
+                            if (car === player) {
+                                speed *= -0.4;
+                            } else if (car.isAI) {
+                                car.aiState = 'BACKUP';
+                                setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                            }
                         }
 
                         if (now >= bc.stoppedUntil) {
