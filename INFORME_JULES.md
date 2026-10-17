@@ -2,36 +2,39 @@
 
 ## 1. Rama y Commit de Partida
 - **Rama de trabajo:** `jules-17163802267813665162-33f8eace`
-- **Commit base de referencia:** `9fd417e818eee8c5afdbae641b910ff467b08561` (incorporó la protección contra colisiones repetidas con los autos negros).
+- **Commit base de referencia:** `97513ca3c7e7a343413b57ea8d2bcf90fd79f5f9` (integración previa del modo Bluetooth con la tercera pista y paisajes).
 
 ## 2. Archivos Modificados y Justificación
-- `app/src/main/assets/index.html`: Código principal del juego (HTML/CSS/JS Canvas). Se modificó para integrar todas las mecánicas y las tres pistas entre el modo contra la computadora y el modo multijugador Bluetooth:
-  1. **Disponibilidad de las 3 Pistas en Ambos Modos:** La selección de pistas `#trackMenu` ofrece las 3 pistas (`forest`, `desert`, `bridge`) tanto para Single Player como para Bluetooth. En Bluetooth, el paquete `START_RACE` sincroniza la pista elegida por el Host hacia los clientes.
-  2. **Tercera Pista ("PUENTE SOBRE EL MAR"):** Asfalto de puente con bordes blancos, agua marina azul a ambos lados y paisaje exclusivamente marítimo con boyas y barcos (sin árboles ni luces).
-  3. **8 Barriles Transversales Móviles (Pista 3):** Barriles carmelitas/marrones con listones amarillos rebotando continuamente entre los contenes de la carretera.
-  4. **Regla de Colisión de 3 Segundos (Barriles y Autos Negros):** El obstáculo golpeado (auto negro en pista 2 o barril en pista 3) se detiene durante exactamente 3 segundos (`stoppedUntil = Date.now() + 3000`). El jugador conserva el control inmediato gracias a la ventana de inmunidad `hitCooldown` (800 ms) sin quedar inmovilizado.
-  5. **Navegación y Regreso al Menú:** Tras finalizar la carrera y completarse el parqueo automático de todos los vehículos (`allFinished && allParked`), el modal `#resultsModal` ofrece el botón «Volver al menú» (`#btnSelectTrack`). Al pulsar, `resetGame(true)` reinicia limpiamente la partida y regresa a la selección de pista en ambos modos.
-  6. **Sincronización Bluetooth RFCOMM:** `POS_UPDATE` transmite coordenadas, ángulos y velocidades entre Host y Cliente a 20 Hz (cada 3 fotogramas) manteniendo la estabilidad sin sobrecargar el socket.
-- `INFORME_JULES.md`: Actualización del informe detallando la integración Bluetooth y los resultados de las pruebas.
+- `app/src/main/assets/index.html`: Código principal del juego (HTML/CSS/JS Canvas). Se realizaron dos correcciones específicas:
+  1. **Inicialización de Barriles (`startRaceLocal`):** Se añadió el llamado explícito a `initBarrels()` en `startRaceLocal(track)` cuando `selectedTrack === 'bridge'`. Esto garantiza que los 8 barriles móviles se instancien y reboten en los contenes desde la primera carrera de la pista 3, tanto en modo Single Player como en Bluetooth (Host y Cliente).
+  2. **Flujo de Nuevas Carreras por Bluetooth (`resetGame` & `onBluetoothData`):** Al finalizar una carrera y presionar «Volver al menú», si la partida es Bluetooth, el Host regresa a `#trackMenu` para elegir la siguiente pista mientras el Cliente regresa a `#bluetoothMenu` en estado de espera ("¡Conectado al Host! Esperando que inicie la siguiente carrera..."). Cuando el Host selecciona la pista, se transmite `START_RACE` al Cliente, iniciando automáticamente ambos dispositivos en la nueva carrera sin perder la conexión Bluetooth ni cerrar la aplicación.
+- `INFORME_JULES.md`: Actualización del informe detallando las correcciones de inicialización y flujo Bluetooth.
 
-## 3. Integración en el Modo Multijugador Bluetooth
-- **Pantalla de Conexión:** Se conserva intacto el flujo de búsqueda, emparejamiento y conexión en `bluetoothMenu`.
-- **Selección de Pista:** Al conectar, el Host accede a `trackMenu` con las 3 opciones (`🌲 BOSQUE ENCANTADO`, `🏜️ DESIERTO ROJO`, `🌊 PUENTE SOBRE EL MAR`). Al seleccionar una, el mensaje `START_RACE` envía `track` y `hostName` al Cliente, iniciando ambos en la misma pista con sus respectivos obstáculos locales (8 autos negros en pista 2 o 8 barriles móviles en pista 3).
-- **Mecánica de Colisión:** La detención de 3 segundos afecta únicamente al obstáculo golpeado en el cliente local. Ningún jugador humano queda congelado ni forzado a esperar.
+## 3. Funcionamiento de la Tercera Pista ("PUENTE SOBRE EL MAR") y Barriles
+- **Inicialización:** `initBarrels()` posiciona exactamente 8 barriles marrones carmelita (`#8B4513`) con listones amarillos (`#FFD700`).
+- **Movimiento transversal:** Los 8 barriles cruzan transversalmente la calzada rebotando al tocar los contenes.
+- **Regla de colisión:** Al recibir un impacto del jugador o IA, el barril afectado detiene su movimiento durante 3 segundos (`stoppedUntil = Date.now() + 3000`), sin detener al jugador (gracias a `hitCooldown`) ni congelar a los otros 7 barriles.
+- **Sintaxis y Reinicio:** Reiniciar o cambiar de pista restablece limpiamente las posiciones sin duplicar los barriles.
 
-## 4. Pruebas Ejecutadas
+## 4. Flujo Multijugador Bluetooth para Carreras Sucesivas
+- **Proceso de Emparejamiento/Conexión:** Se mantiene intacto el flujo inicial nativo RFCOMM (`AndroidBluetooth`).
+- **Fin de Carrera:** Todos los autos completan su parqueo automático en `P1`-`P4`. Se muestra `#resultsModal` con el botón «Volver al menú».
+- **Acción «Volver al menú»:**
+  - **Anfitrión (Host):** Muestra `#trackMenu` para seleccionar la pista de la nueva carrera.
+  - **Cliente:** Muestra `#bluetoothMenu` con el mensaje informativo de espera.
+  - **Transmisión:** Al seleccionar pista, el Host envía `START_RACE`, ocultando los menús en ambos extremos e iniciando la cuenta regresiva de la nueva carrera simultáneamente.
+
+## 5. Pruebas Ejecutadas
 - **Prueba de sintaxis JavaScript:** Analizada y validada con Node.js sobre la estructura de `index.html` (Sintaxis exitosa).
 - **Prueba de verificación de interfaz y video (Playwright):** Se ejecutó el script Playwright navegando en Single Player y modo Host Bluetooth a la pista "PUENTE SOBRE EL MAR", capturando imagen `.png` y video `.webm`.
-- **Prueba de compilación local Android Gradle:** Se ejecutó `./gradlew assembleDebug`, completando **31 tareas exitosamente** en 12s (`BUILD SUCCESSFUL`) y generando el APK local `app/build/outputs/apk/debug/app-debug.apk`.
-- **Diferenciación de Pruebas Bluetooth:**
-  - *Pruebas de código y simulación local:* Verificado el empaquetado de mensajes JSON (`START_RACE`, `POS_UPDATE`), asignación de roles Host/Cliente y callback `onBluetoothData`.
-  - *Aviso de Pruebas Físicas Pendientes:* De acuerdo con las normas de entorno de emulador sandbox, las pruebas de transmisión Bluetooth real con dos smartphones Android físicos emparejados requieren comprobación manual directa por parte del evaluador en dispositivos físicos.
+- **Prueba de compilación local Android Gradle:** Se ejecutó `./gradlew assembleDebug`, completando **31 tareas exitosamente** en 18s (`BUILD SUCCESSFUL`) y generando el APK local `app/build/outputs/apk/debug/app-debug.apk`.
+- **Aviso de Pruebas Físicas Bluetooth:** De acuerdo con las pautas de evaluación y restricciones del entorno sandbox, la prueba real con dos teléfonos Android físicos conectados por hardware Bluetooth RFCOMM requiere comprobación manual por parte del usuario en dispositivos móviles reales.
 
-## 5. Resultado de Compilación y Artefactos
+## 6. Resultado de Compilación y Artefactos
 - **Resultado Local:** `./gradlew assembleDebug` -> `BUILD SUCCESSFUL`
 - **APK Local:** `app/build/outputs/apk/debug/app-debug.apk`
-- **GitHub Actions:** `.github/workflows/build-apk.yml` generará el artefacto `TurboBluetoothRacing4-debug` en la pestaña "Actions" del repositorio de GitHub tras el push.
+- **GitHub Actions:** `.github/workflows/build-apk.yml` generará el artefacto `TurboBluetoothRacing4-debug` en la pestaña "Actions" del repositorio de GitHub tras el push de la rama.
 
-## 6. Enlaces
+## 7. Enlaces
 - **Informe directo en la rama:** [INFORME_JULES.md](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J/blob/jules-17163802267813665162-33f8eace/INFORME_JULES.md)
 - **Repositorio:** [Turbo-Bluetooth-Racing-4J](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J)

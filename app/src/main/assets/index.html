@@ -385,6 +385,7 @@
                     selectedTrack = data.track;
                     cars[0].name = data.hostName;
                     document.getElementById('bluetoothMenu').style.display = 'none';
+                    document.getElementById('trackMenu').style.display = 'none';
                     startRaceLocal(selectedTrack);
                 } else if (data.type === 'POS_UPDATE') {
                     if (isHost) {
@@ -475,7 +476,15 @@
                 document.getElementById('hud').style.display = 'none';
                 document.getElementById('speedometer').style.display = 'none';
                 document.getElementById('controls').style.display = 'none';
-                document.getElementById('trackMenu').style.display = 'flex';
+
+                if (isMultiplayerBT && !isHost) {
+                    document.getElementById('btStatusText').innerText = "¡Conectado al Host! Esperando que inicie la siguiente carrera...";
+                    document.getElementById('bluetoothMenu').style.display = 'flex';
+                    document.getElementById('trackMenu').style.display = 'none';
+                } else {
+                    document.getElementById('bluetoothMenu').style.display = 'none';
+                    document.getElementById('trackMenu').style.display = 'flex';
+                }
             } else {
                 startCountdown();
             }
@@ -512,6 +521,8 @@
 
             if (selectedTrack === 'desert') {
                 initBlackCars();
+            } else if (selectedTrack === 'bridge') {
+                initBarrels();
             }
 
             initAudio();
