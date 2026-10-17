@@ -904,25 +904,65 @@
                     ctx.save();
                     ctx.translate(s.x, s.y);
 
-                    if (s.type === 'tree') {
-                        ctx.fillStyle = selectedTrack === 'forest' ? '#2d6a4f' : '#e9c46a';
-                        ctx.beginPath();
-                        ctx.arc(0, 0, s.size, 0, Math.PI * 2);
-                        ctx.fill();
-                    } else if (s.type === 'house') {
-                        ctx.fillStyle = '#d62828';
-                        ctx.fillRect(-s.size, -s.size, s.size * 2, s.size * 1.5);
-                        ctx.fillStyle = '#003049';
-                        ctx.fillRect(-s.size / 2, -s.size / 2, s.size, s.size / 2);
-                    } else if (s.type === 'crowd') {
-                        ctx.fillStyle = '#f1faee';
-                        ctx.beginPath();
-                        ctx.arc(-10, 0, 8, 0, Math.PI * 2);
-                        ctx.arc(10, 0, 8, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.fillStyle = '#e63946';
-                        ctx.fillRect(-14, 8, 8, 12);
-                        ctx.fillRect(6, 8, 8, 12);
+                    if (selectedTrack === 'bridge') {
+                        // Maritime scenery exclusively: Buoys and Boats
+                        if (s.type === 'tree' || s.type === 'house') {
+                            // Render Boat (Barco)
+                            ctx.fillStyle = '#ffffff';
+                            ctx.beginPath();
+                            ctx.moveTo(-s.size * 0.8, -s.size * 0.3);
+                            ctx.lineTo(s.size * 0.8, -s.size * 0.3);
+                            ctx.lineTo(s.size * 0.5, s.size * 0.4);
+                            ctx.lineTo(-s.size * 0.5, s.size * 0.4);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.strokeStyle = '#333333';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+
+                            // Cabin / Sail
+                            ctx.fillStyle = '#d62828';
+                            ctx.fillRect(-s.size * 0.2, -s.size * 0.7, s.size * 0.4, s.size * 0.4);
+                        } else {
+                            // Render Buoy (Boya)
+                            ctx.fillStyle = '#ff4b2b';
+                            ctx.beginPath();
+                            ctx.arc(0, 0, s.size * 0.45, 0, Math.PI * 2);
+                            ctx.fill();
+
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(-s.size * 0.15, -s.size * 0.15, s.size * 0.3, s.size * 0.3);
+
+                            // Top rod
+                            ctx.strokeStyle = '#f8f9fa';
+                            ctx.lineWidth = 3;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(0, -s.size * 0.6);
+                            ctx.stroke();
+                        }
+                    } else {
+                        // Original Scenery for Track 1 (Forest) & Track 2 (Desert)
+                        if (s.type === 'tree') {
+                            ctx.fillStyle = selectedTrack === 'forest' ? '#2d6a4f' : '#e9c46a';
+                            ctx.beginPath();
+                            ctx.arc(0, 0, s.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else if (s.type === 'house') {
+                            ctx.fillStyle = '#d62828';
+                            ctx.fillRect(-s.size, -s.size, s.size * 2, s.size * 1.5);
+                            ctx.fillStyle = '#003049';
+                            ctx.fillRect(-s.size / 2, -s.size / 2, s.size, s.size / 2);
+                        } else if (s.type === 'crowd') {
+                            ctx.fillStyle = '#f1faee';
+                            ctx.beginPath();
+                            ctx.arc(-10, 0, 8, 0, Math.PI * 2);
+                            ctx.arc(10, 0, 8, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.fillStyle = '#e63946';
+                            ctx.fillRect(-14, 8, 8, 12);
+                            ctx.fillRect(6, 8, 8, 12);
+                        }
                     }
 
                     ctx.restore();

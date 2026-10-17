@@ -7,14 +7,16 @@
 ## 2. Archivos Modificados y Justificación
 - `app/src/main/assets/index.html`: Código principal del juego (HTML/CSS/JS Canvas). Se modificó para implementar:
   1. **Nuevas Pista ("PUENTE SOBRE EL MAR"):** Añadido el botón de selección `🌊 PUENTE SOBRE EL MAR` (`#btnTrackBridge`) y la infraestructura de renderizado con asfalto gris, bordes blancos y mar azul a ambos lados del puente.
-  2. **Barriles Móviles Transversales (8 barriles):** Se crearon 8 barriles carmelitas/marrones (`#8B4513`) con listones amarillos (`#FFD700`) rebotando continuamente entre los contenes de la pista a velocidades independientes.
-  3. **Colisión con Barriles:** Al chocar con un barril, este se detiene durante exactamente 3 segundos (`stoppedUntil = Date.now() + 3000`), mientras los otros 7 barriles siguen en movimiento y el jugador conserva el control inmediato gracias a la protección `hitCooldown`.
-  4. **Navegación y Regreso al Menú:** Verificado y garantizado el reinicio limpio (`resetGame(true)`) y el botón «Volver al menú» en las 3 pistas.
-  5. **Preservación:** La primera pista (`forest`) y la segunda pista (`desert`, con 8 autos negros y colisión corregida) permanecen intactas, así como el puente nativo Bluetooth.
+  2. **Paisaje Marítimo Exclusivo (Pista 3):** Se eliminaron árboles, casas y público terrestre en la Pista 3, reemplazándolos exclusivamente por boyas marítimas (rojas/blancas con asta) y barcos (cascos blancos con cabina roja) ubicados naturalmente en el agua fuera de la vía de conducción.
+  3. **Barriles Móviles Transversales (8 barriles):** Se crearon 8 barriles carmelitas/marrones (`#8B4513`) con listones amarillos (`#FFD700`) rebotando continuamente entre los contenes de la pista a velocidades independientes.
+  4. **Colisión con Barriles:** Al chocar con un barril, este se detiene durante exactamente 3 segundos (`stoppedUntil = Date.now() + 3000`), mientras los otros 7 barriles siguen en movimiento y el jugador conserva el control inmediato gracias a la protección `hitCooldown`.
+  5. **Navegación y Regreso al Menú:** Verificado y garantizado el reinicio limpio (`resetGame(true)`) y el botón «Volver al menú» en las 3 pistas.
+  6. **Preservación:** La primera pista (`forest`) y la segunda pista (`desert`, con 8 autos negros y colisión corregida) permanecen intactas en su diseño, elementos y paisajes originales, así como el puente nativo Bluetooth.
 - `INFORME_JULES.md`: Informe actualizado con todos los requerimientos y resultados de compilación.
 
 ## 3. Funcionamiento de la Tercera Pista ("PUENTE SOBRE EL MAR")
 - **Visualización:** Asfalto de puente (`#4a4e69`), bordillos blancos (`#f8f9fa`) y agua marina azul (`#0077b6`) a ambos lados de la calzada.
+- **Paisaje Marítimo Exclusivo:** Dibujo exclusivo de boyas y barcos distribuidos en el agua. Se han excluido árboles, luces y elementos terrestres en la Pista 3.
 - **Barriles (8 unidades):**
   - **Apariencia:** Barril circular marrón carmelita (`#8B4513`) rodeado de dos aros/listones amarillos brillantes (`#FFD700`).
   - **Movimiento transversal:** Cada barril tiene su propia velocidad horizontal `vx`. Se desplazan de un lado a otro de la calzada rebotando al tocar el contén (`vx = -vx`), manteniéndose estrictamente dentro de los límites de la carretera sin quedar atrapados.
@@ -30,8 +32,8 @@
 
 ## 6. Pruebas Ejecutadas
 - **Prueba de sintaxis JavaScript:** Analizada y validada con Node.js sobre la estructura de `index.html` (Sintaxis exitosa).
-- **Prueba de verificación de interfaz y video (Playwright):** Se ejecutó el script Playwright navegando a la tercera pista ("PUENTE SOBRE EL MAR"), capturando imagen `.png` y video `.webm` de la carrera y el puente sobre el mar.
-- **Prueba de compilación local Android Gradle:** Se ejecutó `./gradlew assembleDebug`, completando **31 tareas exitosamente** en 1m 34s y generando el archivo APK local en `app/build/outputs/apk/debug/app-debug.apk`.
+- **Prueba de verificación de interfaz y video (Playwright):** Se ejecutó el script Playwright navegando a la tercera pista ("PUENTE SOBRE EL MAR"), capturando imagen `.png` y video `.webm` del paisaje marítimo con boyas y barcos.
+- **Prueba de compilación local Android Gradle:** Se ejecutó `./gradlew assembleDebug`, completando **31 tareas exitosamente** en 14s y generando el archivo APK local en `app/build/outputs/apk/debug/app-debug.apk`.
 - **Pruebas manuales en dispositivo físico/emulador:**
   - Probar la fluidez del rebote transversal de los 8 barriles en la pista 3.
   - Verificar la maniobrabilidad al chocar con un barril y continuar conduciendo mientras el barril se detiene por 3 segundos.
