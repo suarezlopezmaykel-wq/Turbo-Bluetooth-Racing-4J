@@ -93,7 +93,7 @@
             <h2>POSICIONES FINALES</h2>
             <ol id="positionsList" class="results-list"></ol>
             <button id="btnRestartRace">VOLVER A JUGAR</button>
-            <button id="btnSelectTrack">CAMBIAR DE PISTA</button>
+            <button id="btnSelectTrack">Volver al menú</button>
             <button id="btnExitGame" class="btn-exit">SALIR DEL JUEGO</button>
         </div>
     </div>
@@ -170,11 +170,30 @@
             { y: -25000, lanes: [2, 3], rampLane: 3 }
         ];
 
+        let blackCars = [];
+        function initBlackCars() {
+            blackCars = obstacles.map((obs, index) => {
+                const lane = (index % 4);
+                const offset = getCurveOffset(obs.y);
+                const startX = ROAD_X + offset - TRACK_WIDTH / 2 + (lane + 0.5) * LANE_WIDTH;
+                return {
+                    id: `black_${index}`,
+                    x: startX,
+                    y: obs.y,
+                    startY: obs.y,
+                    lane: lane,
+                    angle: Math.PI,
+                    speed: 4.5 + (index % 3) * 0.8,
+                    color: '#111111'
+                };
+            });
+        }
+
         const cars = [
-            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
-            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
-            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
-            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null }
+            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 },
+            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 },
+            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 },
+            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1 }
         ];
 
         let player = cars[0];
@@ -375,11 +394,21 @@
                 c.angle = 0;
                 c.speed = 0;
                 c.finished = false;
+                c.parked = false;
                 c.jumping = false;
                 c.jumpZ = 0;
                 c.aiState = 'FORWARD';
                 c.targetSlot = null;
+                c.lastX = c.x;
+                c.lastY = c.y;
+                c.stuckTimer = 0;
+                c.recoveryPhase = 'NONE';
+                c.recoveryTimer = 0;
             });
+
+            if (selectedTrack === 'desert') {
+                initBlackCars();
+            }
 
             if (toTrackSelect) {
                 document.getElementById('hud').style.display = 'none';
@@ -419,6 +448,10 @@
             document.getElementById('hud').style.display = 'block';
             document.getElementById('speedometer').style.display = 'block';
             document.getElementById('controls').style.display = 'flex';
+
+            if (selectedTrack === 'desert') {
+                initBlackCars();
+            }
 
             initAudio();
             setupControls();
@@ -517,20 +550,20 @@
                     const obsMaxX = ROAD_X + curve - TRACK_WIDTH / 2 + (maxLane + 1) * LANE_WIDTH;
                     const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH + LANE_WIDTH / 2;
 
-                    if (car.x >= obsMinX && car.x <= obsMaxX) {
-                        if (Math.abs(car.x - rampX) < LANE_WIDTH / 2) {
-                            const curSpeed = (car === player) ? Math.abs(speed) : 150;
-                            if (curSpeed >= maxSpeed - 15) {
-                                car.jumping = true;
-                                car.jumpZ = 1;
-                                setTimeout(() => {
-                                    car.jumping = false;
-                                    car.jumpZ = 0;
-                                }, 700);
-                                return;
-                            }
+                    if (Math.abs(car.x - rampX) < LANE_WIDTH / 2) {
+                        const curSpeed = (car === player) ? Math.abs(speed) : 150;
+                        if (curSpeed >= maxSpeed - 15) {
+                            car.jumping = true;
+                            car.jumpZ = 1;
+                            setTimeout(() => {
+                                car.jumping = false;
+                                car.jumpZ = 0;
+                            }, 700);
+                            return;
                         }
+                    }
 
+                    if (selectedTrack === 'forest' && car.x >= obsMinX && car.x <= obsMaxX) {
                         car.y += (car.y > obs.y ? 15 : -15);
                         if (car === player) speed *= -0.4;
 
@@ -541,25 +574,86 @@
                     }
                 }
             });
+
+            if (selectedTrack === 'desert' && raceStarted) {
+                blackCars.forEach(bc => {
+                    const dx = car.x - bc.x;
+                    const dy = car.y - bc.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 36 && !car.jumping) {
+                        car.y += (car.y > bc.y ? 18 : -18);
+                        if (car === player) speed *= -0.5;
+                        if (car.isAI) {
+                            car.aiState = 'BACKUP';
+                            setTimeout(() => { car.aiState = 'CHANGE_LANE'; }, 800);
+                        }
+                    }
+                });
+            }
         }
 
         function updateAI(car) {
             if (car.finished || !raceStarted) return;
 
-            if (car.aiState === 'FORWARD') {
-                car.y -= 11.5;
-                car.angle = 0;
-            } else if (car.aiState === 'BACKUP') {
-                car.y += 4;
-                car.angle = 0.1;
-            } else if (car.aiState === 'CHANGE_LANE') {
-                car.x += 3.5;
-                car.y -= 3;
-                setTimeout(() => { car.aiState = 'FORWARD'; }, 700);
+            if (car.lastX === undefined) car.lastX = car.x;
+            if (car.lastY === undefined) car.lastY = car.y;
+            if (car.stuckTimer === undefined) car.stuckTimer = 0;
+            if (car.recoveryTimer === undefined) car.recoveryTimer = 0;
+            if (!car.recoveryPhase) car.recoveryPhase = 'NONE';
+
+            if (car.recoveryPhase === 'NONE') {
+                const distMoved = Math.hypot(car.x - car.lastX, car.y - car.lastY);
+                if (distMoved < 3.5) {
+                    car.stuckTimer++;
+                } else {
+                    car.stuckTimer = Math.max(0, car.stuckTimer - 1);
+                }
+                car.lastX = car.x;
+                car.lastY = car.y;
+
+                if (car.stuckTimer > 40) {
+                    car.recoveryPhase = 'BACKUP';
+                    car.recoveryTimer = 40;
+                    car.stuckTimer = 0;
+                    const trackCenter = getTrackCenterAtY(car.y);
+                    car.recoveryDir = car.x < trackCenter ? 1 : -1;
+                }
             }
 
-            const targetX = getTrackCenterAtY(car.y);
-            car.x += (targetX - car.x) * 0.02;
+            if (car.recoveryPhase === 'BACKUP') {
+                car.y += 4.5;
+                car.x += car.recoveryDir * 1.5;
+                car.angle = -car.recoveryDir * 0.25;
+                car.recoveryTimer--;
+                if (car.recoveryTimer <= 0) {
+                    car.recoveryPhase = 'RESTEER';
+                    car.recoveryTimer = 35;
+                }
+            } else if (car.recoveryPhase === 'RESTEER') {
+                car.y -= 5.0;
+                car.x += car.recoveryDir * 3.5;
+                car.angle = car.recoveryDir * 0.35;
+                car.recoveryTimer--;
+                if (car.recoveryTimer <= 0) {
+                    car.recoveryPhase = 'NONE';
+                    car.aiState = 'FORWARD';
+                }
+            } else {
+                if (car.aiState === 'FORWARD') {
+                    car.y -= 11.5;
+                    car.angle = 0;
+                } else if (car.aiState === 'BACKUP') {
+                    car.y += 4;
+                    car.angle = 0.1;
+                } else if (car.aiState === 'CHANGE_LANE') {
+                    car.x += 3.5;
+                    car.y -= 3;
+                    setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'FORWARD'; }, 700);
+                }
+
+                const targetX = getTrackCenterAtY(car.y);
+                car.x += (targetX - car.x) * 0.02;
+            }
         }
 
         function drawCar(c) {
@@ -633,12 +727,15 @@
 
             obstacles.forEach(obs => {
                 const curve = getCurveOffset(obs.y);
-                const minLane = obs.lanes[0];
-                const obsX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
-                const obsWidth = LANE_WIDTH * 2;
 
-                ctx.fillStyle = '#ff9f1c';
-                ctx.fillRect(obsX, obs.y - 15, obsWidth, 30);
+                if (selectedTrack === 'forest') {
+                    const minLane = obs.lanes[0];
+                    const obsX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
+                    const obsWidth = LANE_WIDTH * 2;
+
+                    ctx.fillStyle = '#ff9f1c';
+                    ctx.fillRect(obsX, obs.y - 15, obsWidth, 30);
+                }
 
                 const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH;
                 ctx.fillStyle = '#3a86ff';
@@ -737,8 +834,10 @@
                 c.angle = Math.atan2(dx, -dy);
                 c.x += Math.sin(c.angle) * 3.5;
                 c.y -= Math.cos(c.angle) * 3.5;
+                c.parked = false;
             } else {
                 c.speed = 0;
+                c.parked = true;
             }
 
             if (c === player && engineGain && audioCtx) {
@@ -822,6 +921,20 @@
             drawTrack();
             drawEnvironment();
 
+            if (selectedTrack === 'desert' && raceStarted) {
+                blackCars.forEach(bc => {
+                    bc.y += bc.speed;
+                    if (bc.y > START_Y + 1200) {
+                        bc.y = GOAL_Y - 1200;
+                    }
+                    const cOffset = getCurveOffset(bc.y);
+                    const laneCenterX = ROAD_X + cOffset - TRACK_WIDTH / 2 + (bc.lane + 0.5) * LANE_WIDTH;
+                    bc.x += (laneCenterX - bc.x) * 0.1;
+
+                    drawCar(bc);
+                });
+            }
+
             cars.forEach((c) => {
                 if (c !== player && raceStarted && !c.finished) {
                     if (!isMultiplayerBT && c.isAI) {
@@ -846,7 +959,9 @@
 
             ctx.restore();
 
-            if (finishedCars.length === cars.length && document.getElementById('resultsModal').style.display !== 'flex') {
+            const allFinished = finishedCars.length === cars.length;
+            const allParked = cars.every(c => c.parked === true);
+            if (allFinished && allParked && document.getElementById('resultsModal').style.display !== 'flex') {
                 showResults();
             }
         }
