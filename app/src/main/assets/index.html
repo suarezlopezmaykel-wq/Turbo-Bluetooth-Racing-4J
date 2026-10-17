@@ -81,6 +81,7 @@
             <h2>SELECCIONAR PISTA</h2>
             <button id="btnTrackForest" class="btn-track" style="background: #2a9d8f;">🌲 BOSQUE ENCANTADO</button>
             <button id="btnTrackDesert" class="btn-track" style="background: #e76f51;">🏜️ DESIERTO ROJO</button>
+            <button id="btnTrackBridge" class="btn-track" style="background: #0077b6;">🌊 PUENTE SOBRE EL MAR</button>
         </div>
     </div>
 
@@ -190,6 +191,60 @@
                     color: '#111111'
                 };
             });
+        }
+
+        let barrels = [];
+        function initBarrels() {
+            barrels = obstacles.map((obs, index) => {
+                const offset = getCurveOffset(obs.y);
+                const leftB = ROAD_X + offset - TRACK_WIDTH / 2 + 25;
+                const rightB = ROAD_X + offset + TRACK_WIDTH / 2 - 25;
+                const startX = leftB + (index / 7) * (rightB - leftB);
+                const dir = (index % 2 === 0) ? 1 : -1;
+                const baseVx = (2.2 + (index % 3) * 0.6) * dir;
+                return {
+                    id: `barrel_${index}`,
+                    x: startX,
+                    y: obs.y,
+                    vx: baseVx,
+                    baseVx: baseVx,
+                    stoppedUntil: 0,
+                    radius: 16
+                };
+            });
+        }
+
+        function drawBarrel(b) {
+            ctx.save();
+            ctx.translate(b.x, b.y);
+
+            // Barrel Body (Brown / Carmelita)
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#5c2c09';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Yellow hoops (Listones amarillos)
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius * 0.7, -Math.PI * 0.75, -Math.PI * 0.25);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius * 0.7, Math.PI * 0.25, Math.PI * 0.75);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius * 0.3, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFD700';
+            ctx.fill();
+
+            ctx.restore();
         }
 
         const cars = [
@@ -359,6 +414,7 @@
 
         document.getElementById('btnTrackForest').onclick = () => selectTrackAndStart('forest');
         document.getElementById('btnTrackDesert').onclick = () => selectTrackAndStart('desert');
+        document.getElementById('btnTrackBridge').onclick = () => selectTrackAndStart('bridge');
 
         function selectTrackAndStart(track) {
             selectedTrack = track;
@@ -411,6 +467,8 @@
 
             if (selectedTrack === 'desert') {
                 initBlackCars();
+            } else if (selectedTrack === 'bridge') {
+                initBarrels();
             }
 
             if (toTrackSelect) {
@@ -611,6 +669,39 @@
                         }
                     }
                 });
+            } else if (selectedTrack === 'bridge' && raceStarted) {
+                const now = Date.now();
+                if (car.hitCooldown === undefined) car.hitCooldown = 0;
+
+                barrels.forEach(b => {
+                    const dx = car.x - b.x;
+                    const dy = car.y - b.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = b.radius + 18;
+
+                    if (dist < minDist && !car.jumping) {
+                        const overlap = minDist - dist;
+                        const nx = dist > 0 ? dx / dist : 0;
+                        const ny = dist > 0 ? dy / dist : (car.y > b.y ? 1 : -1);
+                        car.x += nx * Math.max(overlap, 10);
+                        car.y += ny * Math.max(overlap, 12);
+
+                        if (now > car.hitCooldown) {
+                            car.hitCooldown = now + 800;
+
+                            if (car === player) {
+                                speed *= -0.4;
+                            } else if (car.isAI) {
+                                car.aiState = 'BACKUP';
+                                setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                            }
+                        }
+
+                        if (now >= b.stoppedUntil) {
+                            b.stoppedUntil = now + 3000;
+                        }
+                    }
+                });
             }
         }
 
@@ -707,8 +798,15 @@
         }
 
         function drawTrack() {
-            const trackColor = selectedTrack === 'forest' ? '#2b2d42' : '#3d2612';
-            const curbColor = selectedTrack === 'forest' ? '#c1121f' : '#e76f51';
+            let trackColor = '#2b2d42';
+            let curbColor = '#c1121f';
+            if (selectedTrack === 'desert') {
+                trackColor = '#3d2612';
+                curbColor = '#e76f51';
+            } else if (selectedTrack === 'bridge') {
+                trackColor = '#4a4e69';
+                curbColor = '#f8f9fa';
+            }
 
             const step = 180;
             for (let y = START_Y + 1000; y >= GOAL_Y - 3000; y -= step) {
@@ -933,7 +1031,10 @@
             }
 
             ctx.save();
-            ctx.fillStyle = selectedTrack === 'forest' ? '#52b788' : '#f4a261';
+            let bgBgColor = '#52b788';
+            if (selectedTrack === 'desert') bgBgColor = '#f4a261';
+            else if (selectedTrack === 'bridge') bgBgColor = '#0077b6';
+            ctx.fillStyle = bgBgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const cameraY = player.y - canvas.height * 0.22;
@@ -959,6 +1060,26 @@
                     bc.x += (laneCenterX - bc.x) * 0.1;
 
                     drawCar(bc);
+                });
+            } else if (selectedTrack === 'bridge' && raceStarted) {
+                const now = Date.now();
+                barrels.forEach(b => {
+                    if (now >= b.stoppedUntil) {
+                        b.x += b.vx;
+                        const cOffset = getCurveOffset(b.y);
+                        const leftB = ROAD_X + cOffset - TRACK_WIDTH / 2 + 25;
+                        const rightB = ROAD_X + cOffset + TRACK_WIDTH / 2 - 25;
+
+                        if (b.x <= leftB) {
+                            b.x = leftB;
+                            b.vx = Math.abs(b.vx);
+                        } else if (b.x >= rightB) {
+                            b.x = rightB;
+                            b.vx = -Math.abs(b.vx);
+                        }
+                    }
+
+                    drawBarrel(b);
                 });
             }
 

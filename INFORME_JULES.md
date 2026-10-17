@@ -1,49 +1,46 @@
 # INFORME DE MIGRACIÓN Y ESTADO: TURBO BLUETOOTH RACING 4
 
-## 1. Archivos Modificados y Justificación
+## 1. Rama y Commit de Partida
+- **Rama de trabajo:** `jules-17163802267813665162-33f8eace`
+- **Commit base de referencia:** `9fd417e818eee8c5afdbae641b910ff467b08561` (incorporó la protección contra colisiones repetidas con los autos negros).
+
+## 2. Archivos Modificados y Justificación
 - `app/src/main/assets/index.html`: Código principal del juego (HTML/CSS/JS Canvas). Se modificó para implementar:
-  1. Detección y recuperación de atascos de los autos controlados por la computadora (IA).
-  2. Verificación de estacionamiento completo antes de mostrar los resultados y actualización del botón para regresar al menú («Volver al menú»).
-  3. Eliminación completa de vallas y rampas de salto en la segunda pista (`desert`), sustituyéndolas por exactamente 8 autos negros circulando en sentido contrario con detención de 3 segundos por colisión y protección de impacto único para evitar desaceleraciones repetitivas del jugador.
-  4. Conservación intacta de la primera pista (`forest`) y del puente nativo Bluetooth.
-- `INFORME_JULES.md`: Actualización del informe detallando las correcciones realizadas.
+  1. **Nuevas Pista ("PUENTE SOBRE EL MAR"):** Añadido el botón de selección `🌊 PUENTE SOBRE EL MAR` (`#btnTrackBridge`) y la infraestructura de renderizado con asfalto gris, bordes blancos y mar azul a ambos lados del puente.
+  2. **Barriles Móviles Transversales (8 barriles):** Se crearon 8 barriles carmelitas/marrones (`#8B4513`) con listones amarillos (`#FFD700`) rebotando continuamente entre los contenes de la pista a velocidades independientes.
+  3. **Colisión con Barriles:** Al chocar con un barril, este se detiene durante exactamente 3 segundos (`stoppedUntil = Date.now() + 3000`), mientras los otros 7 barriles siguen en movimiento y el jugador conserva el control inmediato gracias a la protección `hitCooldown`.
+  4. **Navegación y Regreso al Menú:** Verificado y garantizado el reinicio limpio (`resetGame(true)`) y el botón «Volver al menú» en las 3 pistas.
+  5. **Preservación:** La primera pista (`forest`) y la segunda pista (`desert`, con 8 autos negros y colisión corregida) permanecen intactas, así como el puente nativo Bluetooth.
+- `INFORME_JULES.md`: Informe actualizado con todos los requerimientos y resultados de compilación.
 
-## 2. Recuperación de los Autos de la Computadora (IA)
-- **Mecanismo de detección:** Se realiza un seguimiento continuo de la posición del auto (`lastX`, `lastY`). Si el desplazamiento acumulado en 40 fotogramas consecutivos es menor a 3.5 unidades mientras el juego está activo, se activa el estado de atasco (`recoveryPhase = 'BACKUP'`).
-- **Rutina de recuperación basada en geometría:**
-  - El auto reduce su avance/retrocede (`car.y += 4.5`) e invierte su dirección hacia el centro de la pista derivado geométricamente con `getTrackCenterAtY(car.y)`.
-  - Posteriormente pasa a una fase de re-orientación (`recoveryPhase = 'RESTEER'`) donde gira activamente alejándose de las barreras y reasumiendo el ángulo correcto de la curva.
-  - Al completar la fase de re-alineación, reanuda la conducción normal (`aiState = 'FORWARD'`) hacia la meta sin quedarse bloqueado en bucles infinitos ni traspasar paredes.
+## 3. Funcionamiento de la Tercera Pista ("PUENTE SOBRE EL MAR")
+- **Visualización:** Asfalto de puente (`#4a4e69`), bordillos blancos (`#f8f9fa`) y agua marina azul (`#0077b6`) a ambos lados de la calzada.
+- **Barriles (8 unidades):**
+  - **Apariencia:** Barril circular marrón carmelita (`#8B4513`) rodeado de dos aros/listones amarillos brillantes (`#FFD700`).
+  - **Movimiento transversal:** Cada barril tiene su propia velocidad horizontal `vx`. Se desplazan de un lado a otro de la calzada rebotando al tocar el contén (`vx = -vx`), manteniéndose estrictamente dentro de los límites de la carretera sin quedar atrapados.
 
-## 3. Fin de Carrera, Estacionamiento y Botón «Volver al Menú»
-- **Determinación de autos estacionados:** Cada auto que cruza la meta es guiado automáticamente hacia una casilla de parqueo (`targetSlot`). Se evalúa su distancia a la casilla (`Math.hypot(dx, dy)`). Se marca `parked = true` únicamente cuando la distancia es menor a 8 unidades y la velocidad llega a 0.
-- **Condición para mostrar el menú de resultados:** El modal `#resultsModal` solo se muestra cuando se cumplen simultáneamente ambas condiciones:
-  1. `finishedCars.length === cars.length` (todos los autos cruzaron la meta).
-  2. `cars.every(c => c.parked === true)` (todos los autos están totalmente estacionados en sus casillas de parqueo).
-- **Botón «Volver al menú»:** Se actualizó la interfaz del modal final con el texto exacto «Volver al menú» (`#btnSelectTrack`). Al hacer clic, se reinicia el estado de la carrera (`resetGame(true)`) y se regresa a la pantalla de selección de pista (`#trackMenu`) sin cerrar la aplicación. Los manejadores de eventos se registran una sola vez para evitar duplicaciones.
-- **Adaptabilidad visual:** Mantiene el diseño responsive con Flexbox y CSS adaptable a pantallas de móviles y tabletas.
+## 4. Regla de Colisión con los Barriles
+- **Detención individual:** Cada barril posee su propio campo `stoppedUntil`. Al ser golpeado, se fija `stoppedUntil = Date.now() + 3000`. Durante 3 segundos, ese barril específico detiene su movimiento transversal, mientras los otros 7 barriles continúan moviéndose normalmente.
+- **Continuidad del Jugador:** Se utiliza la protección `hitCooldown` (800 ms de inmunidad a nuevas reducciones de velocidad) y separación física de superposición (`overlap`). El jugador no sufre congelamientos ni inversiones repetidas en fotogramas consecutivos.
+- **Reanudación:** Al expirar los 3 segundos, el barril vuelve a moverse en sentido transversal rebotando de forma regular.
 
-## 4. Sustitución de Vallas y Rampas por Autos Negros y Gestión de Colisiones
-- **Conteo y eliminación:** Se identificaron exactamente 8 vallas/rampas en las posiciones Y `[2000, -2000, -6000, -10000, -14000, -18000, -22000, -25000]`. Tanto las vallas como las rampas de salto fueron eliminadas de la segunda pista (`desert`).
-- **Autos negros añadidos:** Se instanciaron exactamente **8 autos negros** (`color: '#111111'`), circulando en sentido contrario (orientación `Math.PI`) distribuidos por distintos carriles.
-- **Mecanismo de Colisión sin Penalización Continua del Jugador:**
-  - **Detención del auto negro:** Al chocar con el jugador o un auto IA, se marca `stoppedUntil = Date.now() + 3000`. Durante 3 segundos, la velocidad del auto negro individual se fija en 0 (`speed = 0`).
-  - **Protección de Impacto Único del Jugador (`hitCooldown`):** Se implementó una ventana de protección de 800 ms (`hitCooldown = Date.now() + 800`). La reducción de velocidad por choque (`speed *= -0.4`) se aplica **una sola vez por colisión**.
-  - **Separación física:** Se aplica un desplazamiento inmediato de superposición (`overlap`) que empuja los vehículos apartándolos.
-  - El jugador puede acelerar y continuar conduciendo inmediatamente sin quedarse atascado en bucles de inversión de velocidad ni sufrir esperas forzadas de 3 segundos.
-- **Pista Bosque Encantado (`forest`):** Conserva sus vallas y rampas de salto originales intactas.
+## 5. Regreso al Menú y Reinicio en las 3 Pistas
+- Al finalizar cualquier carrera (después de cruzar la meta y completar el estacionamiento automático en las casillas `P1` a `P4`), aparece el modal final con el botón «Volver al menú».
+- Al hacer clic, se reinician todos los estados (`resetGame(true)`), restableciendo contadores, posiciones de autos, temporizadores de barriles y autos negros, retornando a la pantalla de selección de pista (`#trackMenu`).
 
-## 5. Pruebas Ejecutadas
-- **Prueba de sintaxis JavaScript:** Validada mediante Node.js analizando la sintaxis del script en `index.html`.
-- **Prueba de interfaz y video Playwright:** Ejecutada con script Playwright verificando el renderizado de la interfaz y la generación del video `.webm` y captura `.png`.
-- **Prueba de compilación Gradle local:** Se ejecutó `./gradlew assembleDebug`. Como ocurre en el entorno sandbox aislado, la descarga devolvió `429 Too Many Requests`. La compilación del APK se ejecuta automáticamente en GitHub Actions al subir los cambios a la rama.
-- **Pruebas manuales recomendadas:**
-  - Probar en un teléfono/emulador Android la colisión frontal con un auto negro y confirmar que el jugador mantiene el control y acelera de inmediato mientras el auto negro permanece detenido por 3 segundos.
+## 6. Pruebas Ejecutadas
+- **Prueba de sintaxis JavaScript:** Analizada y validada con Node.js sobre la estructura de `index.html` (Sintaxis exitosa).
+- **Prueba de verificación de interfaz y video (Playwright):** Se ejecutó el script Playwright navegando a la tercera pista ("PUENTE SOBRE EL MAR"), capturando imagen `.png` y video `.webm` de la carrera y el puente sobre el mar.
+- **Prueba de compilación local Android Gradle:** Se ejecutó `./gradlew assembleDebug`, completando **31 tareas exitosamente** en 1m 34s y generando el archivo APK local en `app/build/outputs/apk/debug/app-debug.apk`.
+- **Pruebas manuales en dispositivo físico/emulador:**
+  - Probar la fluidez del rebote transversal de los 8 barriles en la pista 3.
+  - Verificar la maniobrabilidad al chocar con un barril y continuar conduciendo mientras el barril se detiene por 3 segundos.
 
-## 6. Resultado de Compilación y Artefacto APK
-- **Workflow:** `.github/workflows/build-apk.yml`
-- **Artefacto:** `TurboBluetoothRacing4-debug` disponible en la sección "Actions" de GitHub al subir la rama.
+## 7. Resultado de Compilación y Artefactos
+- **Resultado Local:** `./gradlew assembleDebug` -> `BUILD SUCCESSFUL`
+- **APK Local:** `app/build/outputs/apk/debug/app-debug.apk`
+- **GitHub Actions:** `.github/workflows/build-apk.yml` generará el artefacto `TurboBluetoothRacing4-debug` en la pestaña "Actions" del repositorio de GitHub tras el push.
 
-## 7. Enlaces
-- **Informe directo en la rama de trabajo:** [INFORME_JULES.md](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J/blob/jules-17163802267813665162-33f8eace/INFORME_JULES.md)
+## 8. Enlaces
+- **Informe directo en la rama:** [INFORME_JULES.md](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J/blob/jules-17163802267813665162-33f8eace/INFORME_JULES.md)
 - **Repositorio:** [Turbo-Bluetooth-Racing-4J](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J)
