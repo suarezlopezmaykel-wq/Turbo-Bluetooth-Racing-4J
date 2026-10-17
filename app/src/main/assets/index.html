@@ -176,6 +176,7 @@
                 const lane = (index % 4);
                 const offset = getCurveOffset(obs.y);
                 const startX = ROAD_X + offset - TRACK_WIDTH / 2 + (lane + 0.5) * LANE_WIDTH;
+                const baseSpd = 4.5 + (index % 3) * 0.8;
                 return {
                     id: `black_${index}`,
                     x: startX,
@@ -183,7 +184,9 @@
                     startY: obs.y,
                     lane: lane,
                     angle: Math.PI,
-                    speed: 4.5 + (index % 3) * 0.8,
+                    baseSpeed: baseSpd,
+                    speed: baseSpd,
+                    stoppedUntil: 0,
                     color: '#111111'
                 };
             });
@@ -542,50 +545,63 @@
                 if (car === player) speed *= 0.4;
             }
 
-            obstacles.forEach(obs => {
-                if (Math.abs(car.y - obs.y) < 35) {
-                    const minLane = obs.lanes[0];
-                    const maxLane = obs.lanes[1];
-                    const obsMinX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
-                    const obsMaxX = ROAD_X + curve - TRACK_WIDTH / 2 + (maxLane + 1) * LANE_WIDTH;
-                    const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH + LANE_WIDTH / 2;
+            if (selectedTrack === 'forest') {
+                obstacles.forEach(obs => {
+                    if (Math.abs(car.y - obs.y) < 35) {
+                        const minLane = obs.lanes[0];
+                        const maxLane = obs.lanes[1];
+                        const obsMinX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
+                        const obsMaxX = ROAD_X + curve - TRACK_WIDTH / 2 + (maxLane + 1) * LANE_WIDTH;
+                        const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH + LANE_WIDTH / 2;
 
-                    if (Math.abs(car.x - rampX) < LANE_WIDTH / 2) {
-                        const curSpeed = (car === player) ? Math.abs(speed) : 150;
-                        if (curSpeed >= maxSpeed - 15) {
-                            car.jumping = true;
-                            car.jumpZ = 1;
-                            setTimeout(() => {
-                                car.jumping = false;
-                                car.jumpZ = 0;
-                            }, 700);
-                            return;
+                        if (Math.abs(car.x - rampX) < LANE_WIDTH / 2) {
+                            const curSpeed = (car === player) ? Math.abs(speed) : 150;
+                            if (curSpeed >= maxSpeed - 15) {
+                                car.jumping = true;
+                                car.jumpZ = 1;
+                                setTimeout(() => {
+                                    car.jumping = false;
+                                    car.jumpZ = 0;
+                                }, 700);
+                                return;
+                            }
+                        }
+
+                        if (car.x >= obsMinX && car.x <= obsMaxX) {
+                            car.y += (car.y > obs.y ? 15 : -15);
+                            if (car === player) speed *= -0.4;
+
+                            if (car.isAI) {
+                                car.aiState = 'BACKUP';
+                                setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                            }
                         }
                     }
-
-                    if (selectedTrack === 'forest' && car.x >= obsMinX && car.x <= obsMaxX) {
-                        car.y += (car.y > obs.y ? 15 : -15);
-                        if (car === player) speed *= -0.4;
-
-                        if (car.isAI) {
-                            car.aiState = 'BACKUP';
-                            setTimeout(() => { car.aiState = 'CHANGE_LANE'; }, 800);
-                        }
-                    }
-                }
-            });
+                });
+            }
 
             if (selectedTrack === 'desert' && raceStarted) {
+                const now = Date.now();
                 blackCars.forEach(bc => {
                     const dx = car.x - bc.x;
                     const dy = car.y - bc.y;
                     const dist = Math.hypot(dx, dy);
-                    if (dist < 36 && !car.jumping) {
-                        car.y += (car.y > bc.y ? 18 : -18);
-                        if (car === player) speed *= -0.5;
-                        if (car.isAI) {
+                    if (dist < 38 && !car.jumping) {
+                        const overlap = 38 - dist;
+                        const nx = dist > 0 ? dx / dist : 0;
+                        const ny = dist > 0 ? dy / dist : (car.y > bc.y ? 1 : -1);
+                        car.x += nx * Math.max(overlap, 10);
+                        car.y += ny * Math.max(overlap, 15);
+
+                        if (car === player) {
+                            speed *= -0.5;
+                        } else if (car.isAI) {
                             car.aiState = 'BACKUP';
-                            setTimeout(() => { car.aiState = 'CHANGE_LANE'; }, 800);
+                            setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                        }
+
+                        if (now >= bc.stoppedUntil) {
+                            bc.stoppedUntil = now + 3000;
                         }
                     }
                 });
@@ -725,27 +741,26 @@
                 ctx.fill();
             }
 
-            obstacles.forEach(obs => {
-                const curve = getCurveOffset(obs.y);
-
-                if (selectedTrack === 'forest') {
+            if (selectedTrack === 'forest') {
+                obstacles.forEach(obs => {
+                    const curve = getCurveOffset(obs.y);
                     const minLane = obs.lanes[0];
                     const obsX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
                     const obsWidth = LANE_WIDTH * 2;
 
                     ctx.fillStyle = '#ff9f1c';
                     ctx.fillRect(obsX, obs.y - 15, obsWidth, 30);
-                }
 
-                const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH;
-                ctx.fillStyle = '#3a86ff';
-                ctx.beginPath();
-                ctx.moveTo(rampX + 5, obs.y + 40);
-                ctx.lineTo(rampX + LANE_WIDTH - 5, obs.y + 40);
-                ctx.lineTo(rampX + LANE_WIDTH / 2, obs.y - 20);
-                ctx.closePath();
-                ctx.fill();
-            });
+                    const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH;
+                    ctx.fillStyle = '#3a86ff';
+                    ctx.beginPath();
+                    ctx.moveTo(rampX + 5, obs.y + 40);
+                    ctx.lineTo(rampX + LANE_WIDTH - 5, obs.y + 40);
+                    ctx.lineTo(rampX + LANE_WIDTH / 2, obs.y - 20);
+                    ctx.closePath();
+                    ctx.fill();
+                });
+            }
 
             const startCurve = getCurveOffset(START_Y);
             ctx.fillStyle = '#ffeb3b';
@@ -922,10 +937,16 @@
             drawEnvironment();
 
             if (selectedTrack === 'desert' && raceStarted) {
+                const now = Date.now();
                 blackCars.forEach(bc => {
-                    bc.y += bc.speed;
-                    if (bc.y > START_Y + 1200) {
-                        bc.y = GOAL_Y - 1200;
+                    if (now < bc.stoppedUntil) {
+                        bc.speed = 0;
+                    } else {
+                        bc.speed = bc.baseSpeed;
+                        bc.y += bc.speed;
+                        if (bc.y > START_Y + 1200) {
+                            bc.y = GOAL_Y - 1200;
+                        }
                     }
                     const cOffset = getCurveOffset(bc.y);
                     const laneCenterX = ROAD_X + cOffset - TRACK_WIDTH / 2 + (bc.lane + 0.5) * LANE_WIDTH;
