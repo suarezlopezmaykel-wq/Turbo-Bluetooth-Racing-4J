@@ -81,6 +81,7 @@
             <h2>SELECCIONAR PISTA</h2>
             <button id="btnTrackForest" class="btn-track" style="background: #2a9d8f;">🌲 BOSQUE ENCANTADO</button>
             <button id="btnTrackDesert" class="btn-track" style="background: #e76f51;">🏜️ DESIERTO ROJO</button>
+            <button id="btnTrackBridge" class="btn-track" style="background: #0077b6;">🌊 PUENTE SOBRE EL MAR</button>
         </div>
     </div>
 
@@ -93,7 +94,7 @@
             <h2>POSICIONES FINALES</h2>
             <ol id="positionsList" class="results-list"></ol>
             <button id="btnRestartRace">VOLVER A JUGAR</button>
-            <button id="btnSelectTrack">CAMBIAR DE PISTA</button>
+            <button id="btnSelectTrack">Volver al menú</button>
             <button id="btnExitGame" class="btn-exit">SALIR DEL JUEGO</button>
         </div>
     </div>
@@ -170,11 +171,87 @@
             { y: -25000, lanes: [2, 3], rampLane: 3 }
         ];
 
+        let blackCars = [];
+        function initBlackCars() {
+            blackCars = obstacles.map((obs, index) => {
+                const lane = (index % 4);
+                const offset = getCurveOffset(obs.y);
+                const startX = ROAD_X + offset - TRACK_WIDTH / 2 + (lane + 0.5) * LANE_WIDTH;
+                const baseSpd = 4.5 + (index % 3) * 0.8;
+                return {
+                    id: `black_${index}`,
+                    x: startX,
+                    y: obs.y,
+                    startY: obs.y,
+                    lane: lane,
+                    angle: Math.PI,
+                    baseSpeed: baseSpd,
+                    speed: baseSpd,
+                    stoppedUntil: 0,
+                    color: '#111111'
+                };
+            });
+        }
+
+        let barrels = [];
+        function initBarrels() {
+            barrels = obstacles.map((obs, index) => {
+                const offset = getCurveOffset(obs.y);
+                const leftB = ROAD_X + offset - TRACK_WIDTH / 2 + 25;
+                const rightB = ROAD_X + offset + TRACK_WIDTH / 2 - 25;
+                const startX = leftB + (index / 7) * (rightB - leftB);
+                const dir = (index % 2 === 0) ? 1 : -1;
+                const baseVx = (2.2 + (index % 3) * 0.6) * dir;
+                return {
+                    id: `barrel_${index}`,
+                    x: startX,
+                    y: obs.y,
+                    vx: baseVx,
+                    baseVx: baseVx,
+                    stoppedUntil: 0,
+                    radius: 16
+                };
+            });
+        }
+
+        function drawBarrel(b) {
+            ctx.save();
+            ctx.translate(b.x, b.y);
+
+            // Barrel Body (Brown / Carmelita)
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#5c2c09';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Yellow hoops (Listones amarillos)
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius * 0.7, -Math.PI * 0.75, -Math.PI * 0.25);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius * 0.7, Math.PI * 0.25, Math.PI * 0.75);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, b.radius * 0.3, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFD700';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
         const cars = [
-            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
-            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
-            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null },
-            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null }
+            { id: 0, name: "Piloto 1", x: ROAD_X - 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ff2222', isAI: false, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 },
+            { id: 1, name: "Jugador 2", x: ROAD_X - 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ffff', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 },
+            { id: 2, name: "Jugador 3", x: ROAD_X + 0.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#ffcc00', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 },
+            { id: 3, name: "Jugador 4", x: ROAD_X + 1.5 * LANE_WIDTH, y: START_Y + 100, angle: 0, speed: 0, color: '#00ff66', isAI: true, finished: false, jumping: false, jumpZ: 0, aiState: 'FORWARD', targetSlot: null, parked: false, lastX: 0, lastY: 0, stuckTimer: 0, recoveryPhase: 'NONE', recoveryTimer: 0, recoveryDir: 1, hitCooldown: 0 }
         ];
 
         let player = cars[0];
@@ -308,6 +385,7 @@
                     selectedTrack = data.track;
                     cars[0].name = data.hostName;
                     document.getElementById('bluetoothMenu').style.display = 'none';
+                    document.getElementById('trackMenu').style.display = 'none';
                     startRaceLocal(selectedTrack);
                 } else if (data.type === 'POS_UPDATE') {
                     if (isHost) {
@@ -337,6 +415,7 @@
 
         document.getElementById('btnTrackForest').onclick = () => selectTrackAndStart('forest');
         document.getElementById('btnTrackDesert').onclick = () => selectTrackAndStart('desert');
+        document.getElementById('btnTrackBridge').onclick = () => selectTrackAndStart('bridge');
 
         function selectTrackAndStart(track) {
             selectedTrack = track;
@@ -375,17 +454,37 @@
                 c.angle = 0;
                 c.speed = 0;
                 c.finished = false;
+                c.parked = false;
                 c.jumping = false;
                 c.jumpZ = 0;
                 c.aiState = 'FORWARD';
                 c.targetSlot = null;
+                c.lastX = c.x;
+                c.lastY = c.y;
+                c.stuckTimer = 0;
+                c.recoveryPhase = 'NONE';
+                c.recoveryTimer = 0;
             });
+
+            if (selectedTrack === 'desert') {
+                initBlackCars();
+            } else if (selectedTrack === 'bridge') {
+                initBarrels();
+            }
 
             if (toTrackSelect) {
                 document.getElementById('hud').style.display = 'none';
                 document.getElementById('speedometer').style.display = 'none';
                 document.getElementById('controls').style.display = 'none';
-                document.getElementById('trackMenu').style.display = 'flex';
+
+                if (isMultiplayerBT && !isHost) {
+                    document.getElementById('btStatusText').innerText = "¡Conectado al Host! Esperando que inicie la siguiente carrera...";
+                    document.getElementById('bluetoothMenu').style.display = 'flex';
+                    document.getElementById('trackMenu').style.display = 'none';
+                } else {
+                    document.getElementById('bluetoothMenu').style.display = 'none';
+                    document.getElementById('trackMenu').style.display = 'flex';
+                }
             } else {
                 startCountdown();
             }
@@ -419,6 +518,12 @@
             document.getElementById('hud').style.display = 'block';
             document.getElementById('speedometer').style.display = 'block';
             document.getElementById('controls').style.display = 'flex';
+
+            if (selectedTrack === 'desert') {
+                initBlackCars();
+            } else if (selectedTrack === 'bridge') {
+                initBarrels();
+            }
 
             initAudio();
             setupControls();
@@ -509,15 +614,15 @@
                 if (car === player) speed *= 0.4;
             }
 
-            obstacles.forEach(obs => {
-                if (Math.abs(car.y - obs.y) < 35) {
-                    const minLane = obs.lanes[0];
-                    const maxLane = obs.lanes[1];
-                    const obsMinX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
-                    const obsMaxX = ROAD_X + curve - TRACK_WIDTH / 2 + (maxLane + 1) * LANE_WIDTH;
-                    const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH + LANE_WIDTH / 2;
+            if (selectedTrack === 'forest') {
+                obstacles.forEach(obs => {
+                    if (Math.abs(car.y - obs.y) < 35) {
+                        const minLane = obs.lanes[0];
+                        const maxLane = obs.lanes[1];
+                        const obsMinX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
+                        const obsMaxX = ROAD_X + curve - TRACK_WIDTH / 2 + (maxLane + 1) * LANE_WIDTH;
+                        const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH + LANE_WIDTH / 2;
 
-                    if (car.x >= obsMinX && car.x <= obsMaxX) {
                         if (Math.abs(car.x - rampX) < LANE_WIDTH / 2) {
                             const curSpeed = (car === player) ? Math.abs(speed) : 150;
                             if (curSpeed >= maxSpeed - 15) {
@@ -531,35 +636,148 @@
                             }
                         }
 
-                        car.y += (car.y > obs.y ? 15 : -15);
-                        if (car === player) speed *= -0.4;
+                        if (car.x >= obsMinX && car.x <= obsMaxX) {
+                            car.y += (car.y > obs.y ? 15 : -15);
+                            if (car === player) speed *= -0.4;
 
-                        if (car.isAI) {
-                            car.aiState = 'BACKUP';
-                            setTimeout(() => { car.aiState = 'CHANGE_LANE'; }, 800);
+                            if (car.isAI) {
+                                car.aiState = 'BACKUP';
+                                setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+
+            if (selectedTrack === 'desert' && raceStarted) {
+                const now = Date.now();
+                if (car.hitCooldown === undefined) car.hitCooldown = 0;
+
+                blackCars.forEach(bc => {
+                    const dx = car.x - bc.x;
+                    const dy = car.y - bc.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 38 && !car.jumping) {
+                        const overlap = 38 - dist;
+                        const nx = dist > 0 ? dx / dist : 0;
+                        const ny = dist > 0 ? dy / dist : (car.y > bc.y ? 1 : -1);
+                        car.x += nx * Math.max(overlap, 10);
+                        car.y += ny * Math.max(overlap, 15);
+
+                        if (now > car.hitCooldown) {
+                            car.hitCooldown = now + 800;
+
+                            if (car === player) {
+                                speed *= -0.4;
+                            } else if (car.isAI) {
+                                car.aiState = 'BACKUP';
+                                setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                            }
+                        }
+
+                        if (now >= bc.stoppedUntil) {
+                            bc.stoppedUntil = now + 3000;
+                        }
+                    }
+                });
+            } else if (selectedTrack === 'bridge' && raceStarted) {
+                const now = Date.now();
+                if (car.hitCooldown === undefined) car.hitCooldown = 0;
+
+                barrels.forEach(b => {
+                    const dx = car.x - b.x;
+                    const dy = car.y - b.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = b.radius + 18;
+
+                    if (dist < minDist && !car.jumping) {
+                        const overlap = minDist - dist;
+                        const nx = dist > 0 ? dx / dist : 0;
+                        const ny = dist > 0 ? dy / dist : (car.y > b.y ? 1 : -1);
+                        car.x += nx * Math.max(overlap, 10);
+                        car.y += ny * Math.max(overlap, 12);
+
+                        if (now > car.hitCooldown) {
+                            car.hitCooldown = now + 800;
+
+                            if (car === player) {
+                                speed *= -0.4;
+                            } else if (car.isAI) {
+                                car.aiState = 'BACKUP';
+                                setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'CHANGE_LANE'; }, 800);
+                            }
+                        }
+
+                        if (now >= b.stoppedUntil) {
+                            b.stoppedUntil = now + 3000;
+                        }
+                    }
+                });
+            }
         }
 
         function updateAI(car) {
             if (car.finished || !raceStarted) return;
 
-            if (car.aiState === 'FORWARD') {
-                car.y -= 11.5;
-                car.angle = 0;
-            } else if (car.aiState === 'BACKUP') {
-                car.y += 4;
-                car.angle = 0.1;
-            } else if (car.aiState === 'CHANGE_LANE') {
-                car.x += 3.5;
-                car.y -= 3;
-                setTimeout(() => { car.aiState = 'FORWARD'; }, 700);
+            if (car.lastX === undefined) car.lastX = car.x;
+            if (car.lastY === undefined) car.lastY = car.y;
+            if (car.stuckTimer === undefined) car.stuckTimer = 0;
+            if (car.recoveryTimer === undefined) car.recoveryTimer = 0;
+            if (!car.recoveryPhase) car.recoveryPhase = 'NONE';
+
+            if (car.recoveryPhase === 'NONE') {
+                const distMoved = Math.hypot(car.x - car.lastX, car.y - car.lastY);
+                if (distMoved < 3.5) {
+                    car.stuckTimer++;
+                } else {
+                    car.stuckTimer = Math.max(0, car.stuckTimer - 1);
+                }
+                car.lastX = car.x;
+                car.lastY = car.y;
+
+                if (car.stuckTimer > 40) {
+                    car.recoveryPhase = 'BACKUP';
+                    car.recoveryTimer = 40;
+                    car.stuckTimer = 0;
+                    const trackCenter = getTrackCenterAtY(car.y);
+                    car.recoveryDir = car.x < trackCenter ? 1 : -1;
+                }
             }
 
-            const targetX = getTrackCenterAtY(car.y);
-            car.x += (targetX - car.x) * 0.02;
+            if (car.recoveryPhase === 'BACKUP') {
+                car.y += 4.5;
+                car.x += car.recoveryDir * 1.5;
+                car.angle = -car.recoveryDir * 0.25;
+                car.recoveryTimer--;
+                if (car.recoveryTimer <= 0) {
+                    car.recoveryPhase = 'RESTEER';
+                    car.recoveryTimer = 35;
+                }
+            } else if (car.recoveryPhase === 'RESTEER') {
+                car.y -= 5.0;
+                car.x += car.recoveryDir * 3.5;
+                car.angle = car.recoveryDir * 0.35;
+                car.recoveryTimer--;
+                if (car.recoveryTimer <= 0) {
+                    car.recoveryPhase = 'NONE';
+                    car.aiState = 'FORWARD';
+                }
+            } else {
+                if (car.aiState === 'FORWARD') {
+                    car.y -= 11.5;
+                    car.angle = 0;
+                } else if (car.aiState === 'BACKUP') {
+                    car.y += 4;
+                    car.angle = 0.1;
+                } else if (car.aiState === 'CHANGE_LANE') {
+                    car.x += 3.5;
+                    car.y -= 3;
+                    setTimeout(() => { if (car.recoveryPhase === 'NONE') car.aiState = 'FORWARD'; }, 700);
+                }
+
+                const targetX = getTrackCenterAtY(car.y);
+                car.x += (targetX - car.x) * 0.02;
+            }
         }
 
         function drawCar(c) {
@@ -591,8 +809,15 @@
         }
 
         function drawTrack() {
-            const trackColor = selectedTrack === 'forest' ? '#2b2d42' : '#3d2612';
-            const curbColor = selectedTrack === 'forest' ? '#c1121f' : '#e76f51';
+            let trackColor = '#2b2d42';
+            let curbColor = '#c1121f';
+            if (selectedTrack === 'desert') {
+                trackColor = '#3d2612';
+                curbColor = '#e76f51';
+            } else if (selectedTrack === 'bridge') {
+                trackColor = '#4a4e69';
+                curbColor = '#f8f9fa';
+            }
 
             const step = 180;
             for (let y = START_Y + 1000; y >= GOAL_Y - 3000; y -= step) {
@@ -631,24 +856,26 @@
                 ctx.fill();
             }
 
-            obstacles.forEach(obs => {
-                const curve = getCurveOffset(obs.y);
-                const minLane = obs.lanes[0];
-                const obsX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
-                const obsWidth = LANE_WIDTH * 2;
+            if (selectedTrack === 'forest') {
+                obstacles.forEach(obs => {
+                    const curve = getCurveOffset(obs.y);
+                    const minLane = obs.lanes[0];
+                    const obsX = ROAD_X + curve - TRACK_WIDTH / 2 + minLane * LANE_WIDTH;
+                    const obsWidth = LANE_WIDTH * 2;
 
-                ctx.fillStyle = '#ff9f1c';
-                ctx.fillRect(obsX, obs.y - 15, obsWidth, 30);
+                    ctx.fillStyle = '#ff9f1c';
+                    ctx.fillRect(obsX, obs.y - 15, obsWidth, 30);
 
-                const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH;
-                ctx.fillStyle = '#3a86ff';
-                ctx.beginPath();
-                ctx.moveTo(rampX + 5, obs.y + 40);
-                ctx.lineTo(rampX + LANE_WIDTH - 5, obs.y + 40);
-                ctx.lineTo(rampX + LANE_WIDTH / 2, obs.y - 20);
-                ctx.closePath();
-                ctx.fill();
-            });
+                    const rampX = ROAD_X + curve - TRACK_WIDTH / 2 + obs.rampLane * LANE_WIDTH;
+                    ctx.fillStyle = '#3a86ff';
+                    ctx.beginPath();
+                    ctx.moveTo(rampX + 5, obs.y + 40);
+                    ctx.lineTo(rampX + LANE_WIDTH - 5, obs.y + 40);
+                    ctx.lineTo(rampX + LANE_WIDTH / 2, obs.y - 20);
+                    ctx.closePath();
+                    ctx.fill();
+                });
+            }
 
             const startCurve = getCurveOffset(START_Y);
             ctx.fillStyle = '#ffeb3b';
@@ -688,25 +915,65 @@
                     ctx.save();
                     ctx.translate(s.x, s.y);
 
-                    if (s.type === 'tree') {
-                        ctx.fillStyle = selectedTrack === 'forest' ? '#2d6a4f' : '#e9c46a';
-                        ctx.beginPath();
-                        ctx.arc(0, 0, s.size, 0, Math.PI * 2);
-                        ctx.fill();
-                    } else if (s.type === 'house') {
-                        ctx.fillStyle = '#d62828';
-                        ctx.fillRect(-s.size, -s.size, s.size * 2, s.size * 1.5);
-                        ctx.fillStyle = '#003049';
-                        ctx.fillRect(-s.size / 2, -s.size / 2, s.size, s.size / 2);
-                    } else if (s.type === 'crowd') {
-                        ctx.fillStyle = '#f1faee';
-                        ctx.beginPath();
-                        ctx.arc(-10, 0, 8, 0, Math.PI * 2);
-                        ctx.arc(10, 0, 8, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.fillStyle = '#e63946';
-                        ctx.fillRect(-14, 8, 8, 12);
-                        ctx.fillRect(6, 8, 8, 12);
+                    if (selectedTrack === 'bridge') {
+                        // Maritime scenery exclusively: Buoys and Boats
+                        if (s.type === 'tree' || s.type === 'house') {
+                            // Render Boat (Barco)
+                            ctx.fillStyle = '#ffffff';
+                            ctx.beginPath();
+                            ctx.moveTo(-s.size * 0.8, -s.size * 0.3);
+                            ctx.lineTo(s.size * 0.8, -s.size * 0.3);
+                            ctx.lineTo(s.size * 0.5, s.size * 0.4);
+                            ctx.lineTo(-s.size * 0.5, s.size * 0.4);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.strokeStyle = '#333333';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+
+                            // Cabin / Sail
+                            ctx.fillStyle = '#d62828';
+                            ctx.fillRect(-s.size * 0.2, -s.size * 0.7, s.size * 0.4, s.size * 0.4);
+                        } else {
+                            // Render Buoy (Boya)
+                            ctx.fillStyle = '#ff4b2b';
+                            ctx.beginPath();
+                            ctx.arc(0, 0, s.size * 0.45, 0, Math.PI * 2);
+                            ctx.fill();
+
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(-s.size * 0.15, -s.size * 0.15, s.size * 0.3, s.size * 0.3);
+
+                            // Top rod
+                            ctx.strokeStyle = '#f8f9fa';
+                            ctx.lineWidth = 3;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(0, -s.size * 0.6);
+                            ctx.stroke();
+                        }
+                    } else {
+                        // Original Scenery for Track 1 (Forest) & Track 2 (Desert)
+                        if (s.type === 'tree') {
+                            ctx.fillStyle = selectedTrack === 'forest' ? '#2d6a4f' : '#e9c46a';
+                            ctx.beginPath();
+                            ctx.arc(0, 0, s.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else if (s.type === 'house') {
+                            ctx.fillStyle = '#d62828';
+                            ctx.fillRect(-s.size, -s.size, s.size * 2, s.size * 1.5);
+                            ctx.fillStyle = '#003049';
+                            ctx.fillRect(-s.size / 2, -s.size / 2, s.size, s.size / 2);
+                        } else if (s.type === 'crowd') {
+                            ctx.fillStyle = '#f1faee';
+                            ctx.beginPath();
+                            ctx.arc(-10, 0, 8, 0, Math.PI * 2);
+                            ctx.arc(10, 0, 8, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.fillStyle = '#e63946';
+                            ctx.fillRect(-14, 8, 8, 12);
+                            ctx.fillRect(6, 8, 8, 12);
+                        }
                     }
 
                     ctx.restore();
@@ -737,8 +1004,10 @@
                 c.angle = Math.atan2(dx, -dy);
                 c.x += Math.sin(c.angle) * 3.5;
                 c.y -= Math.cos(c.angle) * 3.5;
+                c.parked = false;
             } else {
                 c.speed = 0;
+                c.parked = true;
             }
 
             if (c === player && engineGain && audioCtx) {
@@ -813,7 +1082,10 @@
             }
 
             ctx.save();
-            ctx.fillStyle = selectedTrack === 'forest' ? '#52b788' : '#f4a261';
+            let bgBgColor = '#52b788';
+            if (selectedTrack === 'desert') bgBgColor = '#f4a261';
+            else if (selectedTrack === 'bridge') bgBgColor = '#0077b6';
+            ctx.fillStyle = bgBgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const cameraY = player.y - canvas.height * 0.22;
@@ -821,6 +1093,46 @@
 
             drawTrack();
             drawEnvironment();
+
+            if (selectedTrack === 'desert' && raceStarted) {
+                const now = Date.now();
+                blackCars.forEach(bc => {
+                    if (now < bc.stoppedUntil) {
+                        bc.speed = 0;
+                    } else {
+                        bc.speed = bc.baseSpeed;
+                        bc.y += bc.speed;
+                        if (bc.y > START_Y + 1200) {
+                            bc.y = GOAL_Y - 1200;
+                        }
+                    }
+                    const cOffset = getCurveOffset(bc.y);
+                    const laneCenterX = ROAD_X + cOffset - TRACK_WIDTH / 2 + (bc.lane + 0.5) * LANE_WIDTH;
+                    bc.x += (laneCenterX - bc.x) * 0.1;
+
+                    drawCar(bc);
+                });
+            } else if (selectedTrack === 'bridge' && raceStarted) {
+                const now = Date.now();
+                barrels.forEach(b => {
+                    if (now >= b.stoppedUntil) {
+                        b.x += b.vx;
+                        const cOffset = getCurveOffset(b.y);
+                        const leftB = ROAD_X + cOffset - TRACK_WIDTH / 2 + 25;
+                        const rightB = ROAD_X + cOffset + TRACK_WIDTH / 2 - 25;
+
+                        if (b.x <= leftB) {
+                            b.x = leftB;
+                            b.vx = Math.abs(b.vx);
+                        } else if (b.x >= rightB) {
+                            b.x = rightB;
+                            b.vx = -Math.abs(b.vx);
+                        }
+                    }
+
+                    drawBarrel(b);
+                });
+            }
 
             cars.forEach((c) => {
                 if (c !== player && raceStarted && !c.finished) {
@@ -846,7 +1158,9 @@
 
             ctx.restore();
 
-            if (finishedCars.length === cars.length && document.getElementById('resultsModal').style.display !== 'flex') {
+            const allFinished = finishedCars.length === cars.length;
+            const allParked = cars.every(c => c.parked === true);
+            if (allFinished && allParked && document.getElementById('resultsModal').style.display !== 'flex') {
                 showResults();
             }
         }

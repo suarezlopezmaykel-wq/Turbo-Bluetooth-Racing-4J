@@ -1,40 +1,40 @@
 # INFORME DE MIGRACIÓN Y ESTADO: TURBO BLUETOOTH RACING 4
 
-## 1. Archivos del Juego Trasladados
-Se han migrado única y exclusivamente los componentes necesarios para la ejecución y compilación de **Turbo Bluetooth Racing 4**:
-- `app/src/main/assets/index.html`: Código principal del juego (HTML, CSS y JavaScript/Canvas) con lógica de renderizado, físicas, IA de rivales, interfaz de selección de modo/pistas y lógica del multijugador Bluetooth.
-- `app/src/main/java/com/carrera/bluetooth3d/MainActivity.java`: Actividad Android de puente WebView con interfaz nativa `AndroidBluetooth` que gestiona servidores/clientes RFCOMM Bluetooth en hilos secundarios.
+## 1. Rama y Commit de Partida
+- **Rama de trabajo:** `jules-17163802267813665162-33f8eace`
+- **Commit base de referencia:** `97513ca3c7e7a343413b57ea8d2bcf90fd79f5f9` (integración previa del modo Bluetooth con la tercera pista y paisajes).
 
-## 2. Archivos Excluidos de APK Doctor AI
-Se han excluido intencionalmente todos los archivos y configuraciones pertenecientes a **APK Doctor AI**:
-- `app/src/main/java/com/apkdoctor/ai/MainActivity.kt`: Código fuente de la app APK Doctor AI.
-- `.github/workflows/build.yml` y flujos genéricos anteriores de APK Doctor AI.
-- Ficheros duplicados o no utilizados (`*.kts`).
+## 2. Archivos Modificados y Justificación
+- `app/src/main/assets/index.html`: Código principal del juego (HTML/CSS/JS Canvas). Se realizaron dos correcciones específicas:
+  1. **Inicialización de Barriles (`startRaceLocal`):** Se añadió el llamado explícito a `initBarrels()` en `startRaceLocal(track)` cuando `selectedTrack === 'bridge'`. Esto garantiza que los 8 barriles móviles se instancien y reboten en los contenes desde la primera carrera de la pista 3, tanto en modo Single Player como en Bluetooth (Host y Cliente).
+  2. **Flujo de Nuevas Carreras por Bluetooth (`resetGame` & `onBluetoothData`):** Al finalizar una carrera y presionar «Volver al menú», si la partida es Bluetooth, el Host regresa a `#trackMenu` para elegir la siguiente pista mientras el Cliente regresa a `#bluetoothMenu` en estado de espera ("¡Conectado al Host! Esperando que inicie la siguiente carrera..."). Cuando el Host selecciona la pista, se transmite `START_RACE` al Cliente, iniciando automáticamente ambos dispositivos en la nueva carrera sin perder la conexión Bluetooth ni cerrar la aplicación.
+- `INFORME_JULES.md`: Actualización del informe detallando las correcciones de inicialización y flujo Bluetooth.
 
-## 3. Dependencias Necesarias y Configuración Android
-- **Paquete Android:** `com.carrera.bluetooth3d`
-- **Build configuration (`app/build.gradle`):**
-  - `compileSdk 33`, `targetSdk 33`, `minSdk 26`
-  - Dependencias mínimas: `androidx.appcompat:appcompat:1.6.1` y `com.google.android.material:material:1.9.0`
-- **Permisos Bluetooth (`AndroidManifest.xml`):**
-  - Android 13+ (API 33): `BLUETOOTH_CONNECT`, `BLUETOOTH_SCAN`, `BLUETOOTH_ADVERTISE`
-  - Compatibilidad previa (API <= 30): `BLUETOOTH`, `BLUETOOTH_ADMIN`, `ACCESS_FINE_LOCATION` con `maxSdkVersion="30"`.
+## 3. Funcionamiento de la Tercera Pista ("PUENTE SOBRE EL MAR") y Barriles
+- **Inicialización:** `initBarrels()` posiciona exactamente 8 barriles marrones carmelita (`#8B4513`) con listones amarillos (`#FFD700`).
+- **Movimiento transversal:** Los 8 barriles cruzan transversalmente la calzada rebotando al tocar los contenes.
+- **Regla de colisión:** Al recibir un impacto del jugador o IA, el barril afectado detiene su movimiento durante 3 segundos (`stoppedUntil = Date.now() + 3000`), sin detener al jugador (gracias a `hitCooldown`) ni congelar a los otros 7 barriles.
+- **Sintaxis y Reinicio:** Reiniciar o cambiar de pista restablece limpiamente las posiciones sin duplicar los barriles.
 
-## 4. Cambios en la Geometría de la Salida y Verificación
-- **Problema corregido:** Los coches aparecían fuera de la carretera durante la cuenta regresiva debido a que la curvatura de la pista comenzaba demasiado cerca del punto de origen.
-- **Solución implementada:** En `index.html`, se actualizó la función `getCurveOffset(y)` extendiendo la zona recta inicial de 2000 a **3500 unidades** antes de cualquier curvatura (`START_Y = 5000`, la recta se mantiene inalterada hasta `Y = 1500`). Se incrementó la longitud de transición a **2000 unidades** para garantizar una entrada suave a la primera curva.
-- **Respeto a posiciones y vehículos:** Las posiciones relativas, orientaciones y carriles de los 4 vehículos permanecen idénticos (`ROAD_X ± 1.5 * LANE_WIDTH` y `ROAD_X ± 0.5 * LANE_WIDTH`).
-- **Comprobación Visual:** Se ejecutó una prueba con Playwright cargando el juego y capturando una imagen en la cuenta regresiva. Se confirmó visualmente que todos los coches se encuentran sobre la superficie recta del circuito.
+## 4. Flujo Multijugador Bluetooth para Carreras Sucesivas
+- **Proceso de Emparejamiento/Conexión:** Se mantiene intacto el flujo inicial nativo RFCOMM (`AndroidBluetooth`).
+- **Fin de Carrera:** Todos los autos completan su parqueo automático en `P1`-`P4`. Se muestra `#resultsModal` con el botón «Volver al menú».
+- **Acción «Volver al menú»:**
+  - **Anfitrión (Host):** Muestra `#trackMenu` para seleccionar la pista de la nueva carrera.
+  - **Cliente:** Muestra `#bluetoothMenu` con el mensaje informativo de espera.
+  - **Transmisión:** Al seleccionar pista, el Host envía `START_RACE`, ocultando los menús en ambos extremos e iniciando la cuenta regresiva de la nueva carrera simultáneamente.
 
-## 5. Estado Real de Bluetooth
-- Se ha verificado e inspeccionado en código el flujo de conexión Bluetooth (Servidor RFCOMM en `AcceptThread` y Cliente en `ConnectThread`, callbacks JS `onBluetoothStatus` y `onBluetoothData`).
-- **Aviso de verificación real:** De acuerdo con las directrices de seguridad y entorno, el funcionamiento real de la transmisión entre dispositivos requiere hardware móvil físico con dos smartphones Android emparejados.
+## 5. Pruebas Ejecutadas
+- **Prueba de sintaxis JavaScript:** Analizada y validada con Node.js sobre la estructura de `index.html` (Sintaxis exitosa).
+- **Prueba de verificación de interfaz y video (Playwright):** Se ejecutó el script Playwright navegando en Single Player y modo Host Bluetooth a la pista "PUENTE SOBRE EL MAR", capturando imagen `.png` y video `.webm`.
+- **Prueba de compilación local Android Gradle:** Se ejecutó `./gradlew assembleDebug`, completando **31 tareas exitosamente** en 18s (`BUILD SUCCESSFUL`) y generando el APK local `app/build/outputs/apk/debug/app-debug.apk`.
+- **Aviso de Pruebas Físicas Bluetooth:** De acuerdo con las pautas de evaluación y restricciones del entorno sandbox, la prueba real con dos teléfonos Android físicos conectados por hardware Bluetooth RFCOMM requiere comprobación manual por parte del usuario en dispositivos móviles reales.
 
-## 6. Resultado de GitHub Actions y Generación de APK
-- Se configuró el flujo exclusivo `.github/workflows/build-apk.yml` que ejecuta `./gradlew assembleDebug` en entornos Ubuntu con JDK 17 y publica el artefacto `TurboBluetoothRacing4-debug`.
-- **Nota de compilación local en sandbox:** Durante la prueba local `./gradlew assembleDebug`, el servidor HTTP de Maven Central devolvió un código `429 Too Many Requests` (limitación de tasa de solicitudes en la red sandbox). Por ello, la generación oficial y descarga del paquete APK se procesa mediante el flujo automatizado de GitHub Actions al subir la rama.
+## 6. Resultado de Compilación y Artefactos
+- **Resultado Local:** `./gradlew assembleDebug` -> `BUILD SUCCESSFUL`
+- **APK Local:** `app/build/outputs/apk/debug/app-debug.apk`
+- **GitHub Actions:** `.github/workflows/build-apk.yml` generará el artefacto `TurboBluetoothRacing4-debug` en la pestaña "Actions" del repositorio de GitHub tras el push de la rama.
 
 ## 7. Enlaces
-- **Informe directo en la rama de trabajo:** [INFORME_JULES.md](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J/blob/jules-2585730824572745836-761d501d/INFORME_JULES.md)
-- **Pull Request:** [Ver Pull Request en el Repositorio Destino](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J/pulls)
-- **APK Artefacto:** Estará disponible en la pestaña "Actions" del repositorio una vez que se ejecute el flujo en GitHub.
+- **Informe directo en la rama:** [INFORME_JULES.md](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J/blob/jules-17163802267813665162-33f8eace/INFORME_JULES.md)
+- **Repositorio:** [Turbo-Bluetooth-Racing-4J](https://github.com/suarezlopezmaykel-wq/Turbo-Bluetooth-Racing-4J)
